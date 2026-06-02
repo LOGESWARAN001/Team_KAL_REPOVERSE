@@ -13,7 +13,6 @@ import {
 const HIGHLIGHT_EMISSIVE = 0x30e1b7;
 const HIGHLIGHT_INTENSITY = 0.45;
 
-let scene = null;
 let camera = null;
 let controls = null;
 let selectedBuildingId = null;
@@ -21,8 +20,7 @@ let highlightMaterials = [];
 let focusAnimationId = null;
 let onSelectionChange = null;
 
-export function initBuildingSelection(sceneRef, cameraRef, controlsRef) {
-    scene = sceneRef;
+export function initBuildingSelection(_sceneRef, cameraRef, controlsRef) {
     camera = cameraRef;
     controls = controlsRef;
 }

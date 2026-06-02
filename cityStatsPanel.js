@@ -5,7 +5,9 @@
 import { svgChevron, svgClose, svgStats } from "./explorerIcons.js";
 
 function sectionChevron(collapsed) {
-    return `<span class="stats-section-chevron">${svgChevron(collapsed)}</span>`;
+    return `<span class="stats-section-chevron">${svgChevron(
+        collapsed,
+    )}</span>`;
 }
 
 export class CityStatsPanel {
@@ -76,8 +78,12 @@ export class CityStatsPanel {
                     <span>Files &amp; Folders</span>
                 </button>
                 <div class="stats-section-body">
-                    <div class="stats-row"><span>Total Files</span><strong>${stats.totalFiles}</strong></div>
-                    <div class="stats-row"><span>Total Folders</span><strong>${stats.totalFolders}</strong></div>
+                    <div class="stats-row"><span>Total Files</span><strong>${
+                        stats.totalFiles
+                    }</strong></div>
+                    <div class="stats-row"><span>Total Folders</span><strong>${
+                        stats.totalFolders
+                    }</strong></div>
                 </div>
             </section>
             <section class="stats-section">

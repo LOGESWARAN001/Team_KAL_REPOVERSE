@@ -214,9 +214,7 @@ function findBuilding(x, y, val) {
     if (res.type !== -1) {
         const heightVal = getBuildingHeight(x, y);
         let types = BUILDING_TYPES[res.type];
-        types = types.filter(
-            (t) => heightVal >= t.min && heightVal <= t.max,
-        );
+        types = types.filter((t) => heightVal >= t.min && heightVal <= t.max);
         // let idx = Math.floor(Math.random() * types.length) // Select a random building model
         const idx = (x * y * val) % types.length; // Select a model based on location and height
         res.building = types[idx];

@@ -1,10 +1,10 @@
+@import "landing";
+
 * {
     padding: 0;
     margin: 0;
     font-family: "Inter", sans-serif;
 }
-
-@import "./landing.scss";
 
 :root {
     --yellow: #e1ba30;
@@ -107,10 +107,6 @@ a {
         }
     }
 
-    &:has(.repo-explorer.repo-explorer--open) .buttons-options {
-        display: none;
-    }
-
     & button,
     & a,
     input,
@@ -121,6 +117,14 @@ a {
     .city-stats-panel {
         pointer-events: all;
     }
+}
+
+.selection-screen:not(.hidden) + .buttons-options {
+    opacity: 0;
+}
+
+.canvas-ui:has(.repo-explorer.repo-explorer--open) .buttons-options {
+    display: none;
 }
 
 nav {
@@ -214,9 +218,7 @@ footer {
         color: #fff;
         cursor: pointer;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-        transition:
-            background 200ms ease,
-            opacity 250ms ease,
+        transition: background 200ms ease, opacity 250ms ease,
             visibility 250ms ease;
 
         .repo-svg-stats {
@@ -360,9 +362,7 @@ footer {
         overflow: hidden;
         padding: 0 12px;
         opacity: 0;
-        transition:
-            max-height 320ms ease,
-            opacity 250ms ease,
+        transition: max-height 320ms ease, opacity 250ms ease,
             padding 320ms ease;
     }
 
@@ -451,9 +451,7 @@ footer {
         color: #fff;
         cursor: pointer;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-        transition:
-            background 200ms ease,
-            opacity 250ms ease,
+        transition: background 200ms ease, opacity 250ms ease,
             visibility 250ms ease;
 
         .repo-svg-toggle {
@@ -532,9 +530,7 @@ footer {
         padding: 0;
         border-radius: 6px;
         opacity: 0.85;
-        transition:
-            opacity 150ms ease,
-            background 150ms ease;
+        transition: opacity 150ms ease, background 150ms ease;
 
         .repo-svg-close {
             width: 16px;
@@ -613,6 +609,27 @@ footer {
         top: 4px;
     }
 
+    .repo-tree-chevron {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        color: var(--explorer-muted);
+
+        .repo-svg-chevron {
+            width: 14px;
+            height: 14px;
+        }
+
+        .repo-tree-folder:hover & {
+            color: var(--explorer-text);
+            background: rgba(255, 255, 255, 0.06);
+        }
+    }
+
     .repo-tree-row {
         display: flex;
         align-items: center;
@@ -647,27 +664,6 @@ footer {
         &.no-building {
             opacity: 0.4;
             cursor: default;
-        }
-    }
-
-    .repo-tree-chevron {
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
-        color: var(--explorer-muted);
-
-        .repo-svg-chevron {
-            width: 14px;
-            height: 14px;
-        }
-
-        .repo-tree-folder:hover & {
-            color: var(--explorer-text);
-            background: rgba(255, 255, 255, 0.06);
         }
     }
 
@@ -820,10 +816,6 @@ footer {
         ~ .city-stats:not(.hidden) .city-stats-toggle {
             display: flex;
         }
-    }
-
-    &:not(.hidden) + .buttons-options {
-        opacity: 0;
     }
 }
 

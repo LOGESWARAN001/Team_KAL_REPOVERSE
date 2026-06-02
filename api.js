@@ -51,7 +51,9 @@ export async function fetchRepository(repoInput) {
     if (!parsed) return null;
 
     try {
-        const repoData = await githubFetch(`/repos/${parsed.owner}/${parsed.repo}`);
+        const repoData = await githubFetch(
+            `/repos/${parsed.owner}/${parsed.repo}`,
+        );
         const branch = repoData.default_branch || "main";
         const treeData = await githubFetch(
             `/repos/${parsed.owner}/${parsed.repo}/git/trees/${branch}?recursive=1`,

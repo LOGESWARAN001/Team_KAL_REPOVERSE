@@ -72,7 +72,8 @@ export function metricToBuildingHeight(lines) {
     if (lines <= 50) return Math.max(1, Math.ceil(lines / 25));
     if (lines <= 200) return Math.min(5, 2 + Math.floor((lines - 51) / 50));
     if (lines <= 500) return Math.min(10, 6 + Math.floor((lines - 201) / 100));
-    if (lines <= 1500) return Math.min(20, 11 + Math.floor((lines - 501) / 200));
+    if (lines <= 1500)
+        return Math.min(20, 11 + Math.floor((lines - 501) / 200));
     return Math.min(35, 21 + Math.floor((lines - 1501) / 500));
 }
 
@@ -120,7 +121,14 @@ function createEmptyGrid(rows, cols, fill = -1) {
     return { grid, heights, meta };
 }
 
-function placeBlock(gridData, startY, startX, block, fileIdStart, buildingIdByPath) {
+function placeBlock(
+    gridData,
+    startY,
+    startX,
+    block,
+    fileIdStart,
+    buildingIdByPath,
+) {
     const { grid, heights, meta } = gridData;
     let fileId = fileIdStart;
     const { files, cols, rows } = block;
@@ -196,14 +204,12 @@ export function buildRepositoryGrid(treeFiles) {
         folderMap.get(file.folder).push(file);
     }
 
-    const blocks = [...folderMap.keys()]
-        .sort()
-        .map((folder) => {
-            const folderFiles = folderMap.get(folder);
-            const cols = Math.max(1, Math.ceil(Math.sqrt(folderFiles.length)));
-            const rows = Math.ceil(folderFiles.length / cols);
-            return { folder, files: folderFiles, cols, rows };
-        });
+    const blocks = [...folderMap.keys()].sort().map((folder) => {
+        const folderFiles = folderMap.get(folder);
+        const cols = Math.max(1, Math.ceil(Math.sqrt(folderFiles.length)));
+        const rows = Math.ceil(folderFiles.length / cols);
+        return { folder, files: folderFiles, cols, rows };
+    });
 
     const packedRows = [];
     let currentPack = [];
@@ -213,7 +219,10 @@ export function buildRepositoryGrid(treeFiles) {
     for (const block of blocks) {
         const packWidth = block.cols + 2;
         const packHeight = block.rows + 2;
-        if (currentPack.length > 0 && currentWidth + packWidth + 1 > MAX_GRID_WIDTH) {
+        if (
+            currentPack.length > 0 &&
+            currentWidth + packWidth + 1 > MAX_GRID_WIDTH
+        ) {
             packedRows.push({
                 blocks: currentPack,
                 width: currentWidth,

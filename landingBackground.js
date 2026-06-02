@@ -20,8 +20,8 @@ const PARTICLE_COUNT = 48;
 
 function themeColors() {
     return getTheme() === "dark"
-        ? { dot: "rgba(200, 210, 230, 0.35)" }
-        : { dot: "rgba(80, 100, 120, 0.22)" };
+        ? { r: 200, g: 210, b: 230 }
+        : { r: 80, g: 100, b: 120 };
 }
 
 function createParticles() {
@@ -52,7 +52,6 @@ function resize() {
 
 function draw() {
     if (!ctx || !canvas) return;
-    const colors = themeColors();
     ctx.clearRect(0, 0, width, height);
 
     for (const p of particles) {
@@ -68,11 +67,9 @@ function draw() {
         if (p.x > width + 10) p.x = -10;
 
         const alpha = 0.25 + 0.35 * Math.sin(p.phase);
+        const { r, g, b } = themeColors();
         ctx.beginPath();
-        ctx.fillStyle =
-            getTheme() === "dark"
-                ? `rgba(200, 210, 230, ${alpha})`
-                : `rgba(80, 100, 120, ${alpha})`;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fill();
     }

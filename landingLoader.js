@@ -86,7 +86,7 @@ export async function runWithLoaderSteps(task) {
     try {
         await task();
         setLoaderStep(STEPS.length - 1);
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
     } finally {
         if (stepTimer) clearInterval(stepTimer);
         hideLandingLoader();

@@ -84,11 +84,19 @@ export class RepositoryExplorer {
         const size = meta.sizeFormatted || "—";
         const language = meta.language || "—";
         this.detailsEl.innerHTML = `
-            <p class="repo-explorer-details-title">${escapeHtml(meta.fileName)}</p>
-            <div class="repo-explorer-details-row"><span>Path</span><span>${escapeHtml(path)}</span></div>
+            <p class="repo-explorer-details-title">${escapeHtml(
+                meta.fileName,
+            )}</p>
+            <div class="repo-explorer-details-row"><span>Path</span><span>${escapeHtml(
+                path,
+            )}</span></div>
             <div class="repo-explorer-details-row"><span>Lines of Code</span><span>${lines}</span></div>
-            <div class="repo-explorer-details-row"><span>File Size</span><span>${escapeHtml(size)}</span></div>
-            <div class="repo-explorer-details-row"><span>Language</span><span>${escapeHtml(language)}</span></div>
+            <div class="repo-explorer-details-row"><span>File Size</span><span>${escapeHtml(
+                size,
+            )}</span></div>
+            <div class="repo-explorer-details-row"><span>Language</span><span>${escapeHtml(
+                language,
+            )}</span></div>
         `;
     }
 
@@ -185,7 +193,8 @@ export class RepositoryExplorer {
                         return;
                     }
                 }
-                if (this.searchQuery && !childMatch && node.path !== "/") return;
+                if (this.searchQuery && !childMatch && node.path !== "/")
+                    return;
 
                 if (node.path !== "/") {
                     this.flatRows.push({
@@ -220,7 +229,10 @@ export class RepositoryExplorer {
     renderVisibleRows() {
         const scrollTop = this.treeWrap.scrollTop;
         const viewHeight = this.treeWrap.clientHeight;
-        const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS);
+        const start = Math.max(
+            0,
+            Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS,
+        );
         const visibleCount =
             Math.ceil(viewHeight / ROW_HEIGHT) + BUFFER_ROWS * 2;
         const end = Math.min(this.flatRows.length, start + visibleCount);
@@ -236,11 +248,16 @@ export class RepositoryExplorer {
             el.style.height = `${ROW_HEIGHT}px`;
             const indent = 8 + row.depth * 16;
             el.style.paddingLeft = `${indent}px`;
-            if (row.depth > 0) el.classList.add(`repo-tree-row--depth-${row.depth}`);
+            if (row.depth > 0)
+                el.classList.add(`repo-tree-row--depth-${row.depth}`);
 
             if (row.type === "folder") {
                 el.classList.add("repo-tree-folder");
-                el.innerHTML = `${folderChevronHtml(row.collapsed)}${folderIconHtml()}<span class="repo-tree-label">${escapeHtml(row.node.label)}</span>`;
+                el.innerHTML = `${folderChevronHtml(
+                    row.collapsed,
+                )}${folderIconHtml()}<span class="repo-tree-label">${escapeHtml(
+                    row.node.label,
+                )}</span>`;
                 el.dataset.path = row.node.path;
                 el.dataset.kind = "folder";
             } else {
@@ -250,7 +267,11 @@ export class RepositoryExplorer {
                 if (row.node.buildingId === this.selectedBuildingId) {
                     el.classList.add("selected");
                 }
-                el.innerHTML = `<span class="repo-tree-chevron repo-tree-spacer"></span>${fileIconHtml(row.node.label)}<span class="repo-tree-label">${escapeHtml(row.node.label)}</span>`;
+                el.innerHTML = `<span class="repo-tree-chevron repo-tree-spacer"></span>${fileIconHtml(
+                    row.node.label,
+                )}<span class="repo-tree-label">${escapeHtml(
+                    row.node.label,
+                )}</span>`;
                 el.dataset.path = row.node.path;
                 el.dataset.buildingId = row.node.buildingId || "";
                 el.dataset.kind = "file";
@@ -300,7 +321,10 @@ export class RepositoryExplorer {
         if (index < 0) return;
         const top = index * ROW_HEIGHT;
         const viewHeight = this.treeWrap.clientHeight;
-        this.treeWrap.scrollTop = Math.max(0, top - viewHeight / 2 + ROW_HEIGHT);
+        this.treeWrap.scrollTop = Math.max(
+            0,
+            top - viewHeight / 2 + ROW_HEIGHT,
+        );
         this.scheduleRender();
     }
 }
@@ -343,10 +367,9 @@ function buildTreeFromFiles(files, repoName = "repository") {
 
     const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
     for (const file of sorted) {
-        const parentPath =
-            file.path.includes("/") ?
-                file.path.slice(0, file.path.lastIndexOf("/"))
-            :   "";
+        const parentPath = file.path.includes("/")
+            ? file.path.slice(0, file.path.lastIndexOf("/"))
+            : "";
         const parent = ensureFolder(parentPath);
         parent.children.push({
             type: "file",

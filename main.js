@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { findTiles, getTileTypes, initializeTiles } from "./algo";
 import { fetchRepository, getRepositoryCityData } from "./api";
+import { clearBuildingRegistry } from "./buildingRegistry";
 import {
     clearBuildingSelection,
     initBuildingSelection,
@@ -9,7 +10,6 @@ import {
     selectBuildingFromObject,
     setOnSelectionChange,
 } from "./buildingSelection";
-import { clearBuildingRegistry } from "./buildingRegistry";
 import { CityStatsPanel } from "./cityStatsPanel";
 import {
     enterLandingMode,
@@ -22,7 +22,6 @@ import {
     showLandingLoader,
 } from "./landingLoader.js";
 import { RepositoryExplorer } from "./repositoryExplorer";
-
 import {
     changeShadowPreset,
     clearScene,
@@ -47,7 +46,6 @@ const repoExplorerEl = document.getElementById("repoExplorer");
 const cityStatsPanel = new CityStatsPanel(cityStatsEl);
 
 const urlParams = new URLSearchParams(window.location.search);
-const isLandingInitial = !urlParams.get("repo");
 
 const { scene, controls, camera, renderer } = createScene();
 const renderShiftZ = 0.38;
@@ -95,7 +93,6 @@ function handleTitleClick(e) {
     } else {
         returnToLanding();
     }
-
 }
 
 if (titleLink) titleLink.onclick = handleTitleClick;
@@ -186,7 +183,6 @@ async function generateCityFromRepo(repoInputValue) {
     generateCity(contribs, { heightGrid, fileMetaGrid });
     repositoryExplorer.setFiles(explorerFiles, currentRepoName);
     cityGenerated = true;
-
 }
 
 function updateCityStats(stats) {
@@ -201,24 +197,6 @@ function hideBuildingInfo() {
     }
 }
 
-function showBuildingInfo(meta) {
-    if (cityGenerated) {
-        repositoryExplorer.showFileDetails(meta);
-        return;
-    }
-    if (!buildingInfo || !meta) return;
-    const folder = meta.folderName || meta.folderPath || "—";
-    const language = meta.language || "—";
-    buildingInfo.innerHTML = `
-        <p class="building-info-title">${meta.fileName}</p>
-        <div class="building-info-row"><span>Folder</span><span>${folder}</span></div>
-        <div class="building-info-row"><span>Size</span><span>${meta.sizeFormatted}</span></div>
-        <div class="building-info-row"><span>Lines</span><span>${meta.lines.toLocaleString()}</span></div>
-        <div class="building-info-row"><span>Language</span><span>${language}</span></div>
-    `;
-    buildingInfo.classList.remove("hidden");
-}
-
 function onCanvasPointerDown(event) {
     if (!cityGenerated) return;
 
@@ -229,7 +207,9 @@ function onCanvasPointerDown(event) {
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(scene.children, true);
     for (const hit of hits) {
-        const meta = selectBuildingFromObject(hit.object, { focusCamera: true });
+        const meta = selectBuildingFromObject(hit.object, {
+            focusCamera: true,
+        });
         if (meta) {
             repositoryExplorer.showFileDetails(meta);
             return;

@@ -2,7 +2,10 @@
  * Landing page orchestration — atmosphere, layout mode, and exit transitions.
  */
 
-import { destroyLandingBackground, initLandingBackground } from "./landingBackground.js";
+import {
+    destroyLandingBackground,
+    initLandingBackground,
+} from "./landingBackground.js";
 import { initTheme } from "./theme.js";
 
 /**

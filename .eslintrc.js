@@ -10,7 +10,6 @@ module.exports = {
     },
     plugins: ["simple-import-sort", "import"],
     rules: {
-        indent: ["error", 4],
         "simple-import-sort/imports": "error",
         "simple-import-sort/exports": "error",
         "import/first": "error",

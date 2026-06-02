@@ -246,9 +246,7 @@ body.landing-mode {
     background: var(--landing-surface);
     color: var(--landing-text-secondary);
     cursor: pointer;
-    transition:
-        background 200ms ease,
-        border-color 200ms ease,
+    transition: background 200ms ease, border-color 200ms ease,
         transform 200ms ease;
 
     &:hover {
@@ -345,9 +343,7 @@ body.landing-mode {
     background: var(--landing-surface);
     backdrop-filter: blur(20px);
     box-shadow: var(--landing-shadow);
-    transition:
-        border-color 250ms ease,
-        box-shadow 250ms ease,
+    transition: border-color 250ms ease, box-shadow 250ms ease,
         transform 250ms ease;
 
     &:focus-within {
@@ -395,9 +391,7 @@ body.landing-mode {
     color: #fff;
     background: var(--landing-accent);
     box-shadow: var(--landing-shadow);
-    transition:
-        background 200ms ease,
-        transform 200ms ease,
+    transition: background 200ms ease, transform 200ms ease,
         box-shadow 200ms ease;
 
     &:hover {
@@ -468,11 +462,7 @@ body.landing-mode {
     }
 
     &[data-theme-aware] {
-        background: color-mix(
-            in srgb,
-            var(--landing-bg-base) 88%,
-            transparent
-        );
+        background: color-mix(in srgb, var(--landing-bg-base) 88%, transparent);
     }
 }
 
@@ -580,7 +570,10 @@ body.landing-mode {
 @media (max-width: 768px) {
     .landing-header {
         padding: 1rem 1.25rem 1.25rem;
-        padding-top: max(2.25rem, calc(env(safe-area-inset-top, 0px) + 1.75rem));
+        padding-top: max(
+            2.25rem,
+            calc(env(safe-area-inset-top, 0px) + 1.75rem)
+        );
     }
 
     .landing-header-link {

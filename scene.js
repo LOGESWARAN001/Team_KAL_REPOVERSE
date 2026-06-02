@@ -74,10 +74,7 @@ export function changeShadowPreset(scene, preset) {
         typeof preset === "string" ? parseInt(preset, 10) : preset;
     const size =
         SHADOW_MAP_SIZES[
-            Math.min(
-                SHADOW_MAP_SIZES.length,
-                Math.max(1, presetIndex),
-            ) - 1
+            Math.min(SHADOW_MAP_SIZES.length, Math.max(1, presetIndex)) - 1
         ];
 
     for (const child of scene.children) {

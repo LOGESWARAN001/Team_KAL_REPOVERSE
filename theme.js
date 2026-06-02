@@ -23,7 +23,10 @@ export function applyTheme(theme) {
 
     const toggle = document.getElementById("themeToggle");
     if (toggle) {
-        toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+        toggle.setAttribute(
+            "aria-pressed",
+            theme === "dark" ? "true" : "false",
+        );
         toggle.setAttribute(
             "aria-label",
             theme === "dark" ? "Switch to light theme" : "Switch to dark theme",

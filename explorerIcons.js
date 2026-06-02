@@ -36,7 +36,9 @@ export function svgFolder() {
 }
 
 export function svgFile(fileName) {
-    const ext = fileName.includes(".") ? fileName.split(".").pop().toLowerCase() : "";
+    const ext = fileName.includes(".")
+        ? fileName.split(".").pop().toLowerCase()
+        : "";
     const color = FILE_COLORS[ext] || "#6eb6ff";
     return `<svg class="repo-svg repo-svg-file" viewBox="0 0 16 16" aria-hidden="true" style="--file-accent:${color}"><path fill="#4a4a54" d="M4 1.5h5.2L12 4.3v9.2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1z"/><path fill="${color}" d="M9 1.5v2.8h2.8L9 1.5z"/><rect fill="${color}" x="5" y="7" width="6" height="1.2" rx=".3" opacity=".9"/></svg>`;
 }
@@ -73,5 +75,7 @@ export function folderIconHtml() {
 }
 
 export function fileIconHtml(fileName) {
-    return `<span class="repo-tree-icon repo-tree-icon--file">${svgFile(fileName)}</span>`;
+    return `<span class="repo-tree-icon repo-tree-icon--file">${svgFile(
+        fileName,
+    )}</span>`;
 }
