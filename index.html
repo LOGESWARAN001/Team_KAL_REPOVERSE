@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <!-- Primary Meta Tags -->
+        <title>GitHub City</title>
+        <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="title"
+            content="GitHub City - Generate a 3D city with your GitHub contributions graph."
+        />
+        <meta
+            name="description"
+            content="With GitHub City you can generate a 3D city from a GitHub repository structure."
+        />
+        <meta
+            name="keywords"
+            content="github, city, webgl, 3D, contributions"
+        />
+        <base href="./" />
+
+        <!-- Open Graph / Facebook -->
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:url"
+            content="https://honzaap.github.io/GithubCity"
+        />
+        <meta
+            property="og:title"
+            content="GitHub City - Generate a 3D city with your GitHub contributions graph."
+        />
+        <meta
+            property="og:description"
+            content="With GitHub City you can generate a 3D city from a GitHub repository structure."
+        />
+        <meta
+            property="og:image"
+            content="https://honzaap.github.io/GithubCity/assets/metaimg.png"
+        />
+
+        <!-- Twitter -->
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta
+            property="twitter:url"
+            content="https://honzaap.github.io/GithubCity"
+        />
+        <meta
+            property="twitter:title"
+            content="GitHub City - Generate a 3D city with your GitHub contributions graph."
+        />
+        <meta
+            property="twitter:description"
+            content="With GitHub City you can generate a 3D city from a GitHub repository structure."
+        />
+        <meta
+            property="twitter:image"
+            content="https://honzaap.github.io/GithubCity/assets/metaimg.png"
+        />
+
+        <!-- Styles -->
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.13.5/css/selectize.min.css"
+            integrity="sha512-zSutnLmqtlWVx0A5NdW8YwshpUETPzJ6YBAvb+bkE0QbVKopS0ACPjE6QY6F9aFPSowfiho+hgeQh095FRPj5A=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        />
+        <link rel="stylesheet" href="./style.scss" />
+
+        <!-- Scripts -->
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+            integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.13.5/js/standalone/selectize.min.js"
+            integrity="sha512-JFjt3Gb92wFay5Pu6b0UCH9JIOkOGEfjIi7yykNWUwj55DBBp79VIJ9EPUzNimZ6FvX41jlTHpWFUQjog8P/sw=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+
+        <!--  Google fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+
+        <!-- Font awesome -->
+        <script
+            src="https://kit.fontawesome.com/54904af69a.js"
+            crossorigin="anonymous"
+        ></script>
+    </head>
+    <body>
+        <!-- Atmospheric layer (landing only) — see landing.scss -->
+        <div class="landing-atmosphere" id="landingAtmosphere">
+            <canvas id="landingParticles" aria-hidden="true"></canvas>
+            <div class="landing-skyline" aria-hidden="true"></div>
+            <div class="landing-district-markers" aria-hidden="true">
+                <span class="landing-marker landing-marker--1">src/</span>
+                <span class="landing-marker landing-marker--2"
+                    >components/</span
+                >
+                <span class="landing-marker landing-marker--3">api/</span>
+            </div>
+        </div>
+
+        <canvas id="bg" aria-hidden="true"></canvas>
+
+        <!-- Generation progress overlay -->
+        <div
+            class="landing-loader hidden"
+            id="landingLoader"
+            aria-hidden="true"
+            data-theme-aware
+        >
+            <div class="landing-loader-card">
+                <p class="landing-loader-title">Building your city</p>
+                <div class="landing-loader-bar">
+                    <div
+                        class="landing-loader-progress"
+                        id="landingLoaderProgress"
+                    ></div>
+                </div>
+                <ol class="landing-loader-steps">
+                    <li class="landing-loader-step" id="landingLoaderStep0">
+                        Analyzing Repository
+                    </li>
+                    <li class="landing-loader-step" id="landingLoaderStep1">
+                        Mapping Architecture
+                    </li>
+                    <li class="landing-loader-step" id="landingLoaderStep2">
+                        Generating Districts
+                    </li>
+                    <li class="landing-loader-step" id="landingLoaderStep3">
+                        Constructing Buildings
+                    </li>
+                    <li class="landing-loader-step" id="landingLoaderStep4">
+                        Creating City
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="canvas-ui">
+            <header class="app-header" id="appHeader">
+                <nav>
+                    <a id="title" class="nav-title">GitHub City</a>
+                </nav>
+            </header>
+
+            <!-- Premium landing screen -->
+            <div class="selection-screen landing" id="selectionScreen">
+                <header class="landing-header">
+                    <a href="#" class="landing-brand" id="landingTitle">
+                        <span class="landing-logo" aria-hidden="true">G</span>
+                        <span>GitHub City</span>
+                    </a>
+                    <div class="landing-header-actions">
+                        <button
+                            type="button"
+                            class="landing-icon-btn"
+                            id="themeToggle"
+                            aria-label="Switch to dark theme"
+                            aria-pressed="false"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="12" r="4" />
+                                <path
+                                    d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+                                />
+                            </svg>
+                        </button>
+                        <a
+                            href="https://github.com/honzaap/GitHubCity"
+                            class="landing-header-link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            >GitHub</a
+                        >
+                    </div>
+                </header>
+
+                <main class="landing-main">
+                    <p class="landing-eyebrow">GitHub City</p>
+                    <h1 class="landing-headline">
+                        Transform Your Repository Into A Living City
+                    </h1>
+                    <p class="landing-subheadline">
+                        Explore your codebase as an interactive city generated
+                        directly from your GitHub repository.
+                    </p>
+
+                    <form class="landing-form" id="infoForm">
+                        <div class="landing-input-wrap">
+                            <span class="landing-input-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.395-.135-.345-.72-1.395-1.23-1.68-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A8.203 8.203 0 0012 24c6.63 0 12-5.37 12-12S18.63 0 12 0z"
+                                    />
+                                </svg>
+                            </span>
+                            <input
+                                id="repoInput"
+                                class="landing-input"
+                                type="url"
+                                required
+                                autocomplete="off"
+                                spellcheck="false"
+                                placeholder="Paste a GitHub repository URL"
+                            />
+                        </div>
+                        <button type="submit" class="landing-submit">
+                            Generate City
+                        </button>
+                    </form>
+
+                    <!-- <p class="landing-examples">
+                        e.g.
+                        <code>https://github.com/rahuldhawani/snakes-and-ladders.git</code>
+                       
+                    </p> -->
+
+                    <p class="error" id="errorMessage" role="alert">
+                        Could not load that repository. Check the URL and try
+                        again.
+                    </p>
+
+                    <p class="disclaimer">
+                        <small
+                            >Hardware acceleration recommended for the best
+                            experience</small
+                        >
+                    </p>
+                </main>
+            </div>
+
+            <!-- Side options -->
+            <div class="buttons-options">
+                <p class="options-caption">Shadow quality</p>
+                <input
+                    id="shadowPreset"
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="1"
+                    value="1"
+                    aria-label="Shadow quality"
+                />
+            </div>
+
+            <!-- Upper repo display -->
+            <div id="displayInfo" class="display-info"></div>
+
+            <div id="cityStats" class="city-stats hidden">
+                <div class="city-stats-shell">
+                    <aside class="city-stats-panel" id="cityStatsPanel">
+                        <header class="city-stats-header">
+                            <h4>Repository Statistics</h4>
+                            <button
+                                type="button"
+                                class="city-stats-close"
+                                id="cityStatsClose"
+                                title="Close"
+                                aria-label="Close statistics panel"
+                            ></button>
+                        </header>
+                        <div class="city-stats-body" id="cityStatsBody"></div>
+                    </aside>
+                    <button
+                        type="button"
+                        class="city-stats-toggle"
+                        id="cityStatsToggle"
+                        title="Repository Statistics"
+                        aria-expanded="false"
+                        aria-label="Open repository statistics"
+                    ></button>
+                </div>
+            </div>
+
+            <div id="buildingInfo" class="building-info hidden"></div>
+
+            <div id="repoExplorer" class="repo-explorer hidden">
+                <div class="repo-explorer-shell">
+                    <aside class="repo-explorer-panel" id="repoExplorerPanel">
+                        <header class="repo-explorer-header">
+                            <h4>Repository Explorer</h4>
+                            <button
+                                type="button"
+                                class="repo-explorer-close"
+                                id="repoExplorerClose"
+                                title="Close"
+                                aria-label="Close Repository Explorer"
+                            ></button>
+                        </header>
+                        <div class="repo-explorer-search-wrap">
+                            <span
+                                class="repo-explorer-search-icon"
+                                id="repoExplorerSearchIcon"
+                            ></span>
+                            <input
+                                type="search"
+                                class="repo-explorer-search"
+                                id="repoExplorerSearch"
+                                placeholder="Search files and folders..."
+                            />
+                        </div>
+                        <div
+                            class="repo-explorer-tree-wrap"
+                            id="repoExplorerTreeWrap"
+                        >
+                            <div
+                                class="repo-explorer-tree-spacer"
+                                id="repoExplorerSpacer"
+                            ></div>
+                            <div
+                                class="repo-explorer-tree-items"
+                                id="repoExplorerTreeItems"
+                            ></div>
+                        </div>
+                        <footer
+                            class="repo-explorer-details"
+                            id="repoExplorerDetails"
+                        >
+                            <p class="repo-explorer-details-empty">
+                                Select a file to view details
+                            </p>
+                        </footer>
+                    </aside>
+                    <button
+                        type="button"
+                        class="repo-explorer-toggle"
+                        id="repoExplorerToggle"
+                        title="Repository Explorer"
+                        aria-expanded="false"
+                        aria-label="Open Repository Explorer"
+                    ></button>
+                </div>
+            </div>
+
+            <!-- Prompt to rotate mobile device -->
+            <div class="mobile-rotate">
+                <h4>Please rotate your device</h4>
+                <span class="ico-anim">
+                    <i class="fa-solid fa-mobile"></i>
+                </span>
+                <p class="caption">
+                    For the best experience, visit this website on desktop.
+                </p>
+            </div>
+
+            <footer>
+                <a
+                    href="https://github.com/honzaap/GitHubCity/issues"
+                    class="footer-link"
+                >
+                    <i class="fa-solid fa-bug"></i>
+                    Report a bug
+                </a>
+            </footer>
+        </div>
+
+        <script type="module" src="/main.js"></script>
+
+        <script>
+            $(function () {
+                $("select").selectize();
+            });
+        </script>
+    </body>
+</html>
