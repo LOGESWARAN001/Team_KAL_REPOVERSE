@@ -8,6 +8,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
+import { cloneGltfScene, loadGltfAsset } from "./assetLoader.js";
 import { registerBuildingMesh } from "./buildingRegistry.js";
 import {
     ENVIRONMENT_ANIMATED_ASSET,
@@ -100,6 +101,12 @@ function setShadow(obj, cast = false, receive = false) {
     }
 }
 
+function buildingPartName(floorIndex, totalHeight) {
+    if (floorIndex === 0) return "ground";
+    if (floorIndex === totalHeight - 1) return "roof";
+    return "floor";
+}
+
 export function renderBuilding(x, y, z, building, scene) {
     const height = Math.min(building.value, 35); // Cap height
     for (let i = 0; i < height; i++) {
@@ -109,11 +116,16 @@ export function renderBuilding(x, y, z, building, scene) {
         else if (i === height - 1)
             assetToLoad = building.building.roofUrl; // Load roof tile
         else assetToLoad = building.building.floorUrl; // Load floor tile
-        if (assetToLoad == null || assetToLoad === "") return;
+        if (assetToLoad == null || assetToLoad === "") continue;
 
-        loader.load(
-            `./assets/${assetToLoad}`,
-            function (gltf) {
+        const part = buildingPartName(i, height);
+
+        loadGltfAsset(loader, assetToLoad, {
+            category: "building",
+            part,
+            buildingType: building.type,
+        })
+            .then((gltf) => {
                 const isLShaped = building.type === 2;
                 let extraShiftZ = 0;
                 let extraShiftX = 0;
@@ -123,34 +135,33 @@ export function renderBuilding(x, y, z, building, scene) {
                 }
                 let extraAngle = 0;
 
-                setShadow(gltf.scene, true, false);
+                const root = cloneGltfScene(gltf);
+                setShadow(root, true, false);
 
-                gltf.scene.name = "Building";
+                root.name = "Building";
                 if (building.fileMeta) {
                     const meta = { ...building.fileMeta, isBuilding: true };
-                    gltf.scene.userData = meta;
-                    registerBuildingMesh(meta.buildingId, meta, gltf.scene);
+                    root.userData = meta;
+                    registerBuildingMesh(meta.buildingId, meta, root);
                 }
                 if (building.mirror) {
-                    gltf.scene.scale.z *= -1; // mirror the object
+                    root.scale.z *= -1; // mirror the object
                     extraAngle = 270; // add extra angle to compensate shift from mirroring
                 }
 
-                gltf.scene.position.y = y + i * FLOOR_HEIGHT * 2;
-                gltf.scene.position.x = x + extraShiftX;
-                gltf.scene.position.z = z + extraShiftZ;
+                root.position.y = y + i * FLOOR_HEIGHT * 2;
+                root.position.x = x + extraShiftX;
+                root.position.z = z + extraShiftZ;
 
-                gltf.scene.rotation.y = THREE.Math.degToRad(
+                root.rotation.y = THREE.Math.degToRad(
                     -90 * (building.dir + (isLShaped ? 2 : 0)) - extraAngle,
                 );
 
-                scene.add(gltf.scene);
-            },
-            undefined,
-            function (error) {
-                console.error(error);
-            },
-        );
+                scene.add(root);
+            })
+            .catch(() => {
+                /* Warning logged in assetLoader; skip this floor part */
+            });
     }
 }
 
@@ -162,64 +173,57 @@ export function renderRoad(x, y, z, road, scene) {
     else if (road.type === 3) assetToLoad = ROAD_TYPES[3]; // 2 way turn
     if (assetToLoad == null || assetToLoad === "") return;
 
-    loader.load(
-        `./assets/${assetToLoad}`,
-        function (gltf) {
-            gltf.scene.position.y = y;
-            gltf.scene.position.x = x;
-            gltf.scene.position.z = z;
-            gltf.scene.rotation.y = THREE.Math.degToRad(-90 * road.dir);
+    loadGltfAsset(loader, assetToLoad, {
+        category: "road",
+        buildingType: road.type,
+    })
+        .then((gltf) => {
+            const root = cloneGltfScene(gltf);
+            root.position.y = y;
+            root.position.x = x;
+            root.position.z = z;
+            root.rotation.y = THREE.Math.degToRad(-90 * road.dir);
 
-            setShadow(gltf.scene, false, true);
+            setShadow(root, false, true);
 
-            gltf.scene.name = "Road";
-            scene.add(gltf.scene);
-        },
-        undefined,
-        function (error) {
-            console.error(error);
-        },
-    );
+            root.name = "Road";
+            scene.add(root);
+        })
+        .catch(() => {});
 }
 
 export function renderGrass(x, y, z, scene) {
-    const assetToLoad = GRASS_ASSET;
+    loadGltfAsset(loader, GRASS_ASSET, { category: "grass" })
+        .then((gltf) => {
+            const root = cloneGltfScene(gltf);
+            root.position.y = y;
+            root.position.x = x;
+            root.position.z = z;
 
-    loader.load(
-        `./assets/${assetToLoad}`,
-        function (gltf) {
-            gltf.scene.position.y = y;
-            gltf.scene.position.x = x;
-            gltf.scene.position.z = z;
+            setShadow(root, false, true);
 
-            setShadow(gltf.scene, false, true);
-
-            gltf.scene.name = "Grass";
-            scene.add(gltf.scene);
-        },
-        undefined,
-        function (error) {
-            console.error(error);
-        },
-    );
+            root.name = "Grass";
+            scene.add(root);
+        })
+        .catch(() => {});
 
     // Create a tree somewhere on the tile
     for (const i of [-0.7, 0.7]) {
-        loader.load(
-            `./assets/${
-                TREES_SMALL[Math.floor(TREES_SMALL.length * Math.random())]
-            }`,
-            function (gltf) {
-                gltf.scene.position.x = x + Math.random() * i;
-                gltf.scene.position.y = y;
-                gltf.scene.position.z = z + Math.random() * i;
+        const treeAsset =
+            TREES_SMALL[Math.floor(TREES_SMALL.length * Math.random())];
+        loadGltfAsset(loader, treeAsset, { category: "tree" })
+            .then((gltf) => {
+                const root = cloneGltfScene(gltf);
+                root.position.x = x + Math.random() * i;
+                root.position.y = y;
+                root.position.z = z + Math.random() * i;
 
-                setShadow(gltf.scene, true, false);
+                setShadow(root, true, false);
 
-                gltf.scene.name = "Tree";
-                scene.add(gltf.scene);
-            },
-        );
+                root.name = "Tree";
+                scene.add(root);
+            })
+            .catch(() => {});
     }
 }
 
@@ -320,20 +324,30 @@ function setupEnvironment(scene) {
     const position = new THREE.Vector3(0, -4, 0);
 
     // Render environment (ground)
-    loader.load(`./assets/${ENVIRONMENT_ASSET}`, function (gltf) {
-        const env = gltf.scene;
-        env.position.set(...position);
-        setShadow(gltf.scene, false, true);
-        scene.add(env);
-    });
+    loadGltfAsset(loader, ENVIRONMENT_ASSET, {
+        category: "environment",
+        part: "base",
+    })
+        .then((gltf) => {
+            const env = cloneGltfScene(gltf);
+            env.position.set(...position);
+            setShadow(env, false, true);
+            scene.add(env);
+        })
+        .catch(() => {});
 
     // Render environment (objects and other stuff)
-    loader.load(`./assets/${ENVIRONMENT_OBJECTS_ASSET}`, function (gltf) {
-        const envObjects = gltf.scene;
-        envObjects.position.set(...position);
-        setShadow(gltf.scene, true, false);
-        scene.add(envObjects);
-    });
+    loadGltfAsset(loader, ENVIRONMENT_OBJECTS_ASSET, {
+        category: "environment",
+        part: "objects",
+    })
+        .then((gltf) => {
+            const envObjects = cloneGltfScene(gltf);
+            envObjects.position.set(...position);
+            setShadow(envObjects, true, false);
+            scene.add(envObjects);
+        })
+        .catch(() => {});
 
     // Render and animate animated environment
     let mixer;
@@ -341,21 +355,26 @@ function setupEnvironment(scene) {
         if (mixer) mixer.update(delta);
     };
 
-    loader.load(`./assets/${ENVIRONMENT_ANIMATED_ASSET}`, function (gltf) {
-        const envAnimated = gltf.scene;
-        envAnimated.position.set(...position);
-        setShadow(gltf.scene, true, false);
+    loadGltfAsset(loader, ENVIRONMENT_ANIMATED_ASSET, {
+        category: "environment",
+        part: "animated",
+    })
+        .then((gltf) => {
+            const envAnimated = cloneGltfScene(gltf);
+            envAnimated.position.set(...position);
+            setShadow(envAnimated, true, false);
 
-        // Setup animation mixer and play all animations
-        mixer = new THREE.AnimationMixer(envAnimated);
-        const clips = gltf.animations;
+            // Setup animation mixer and play all animations
+            mixer = new THREE.AnimationMixer(envAnimated);
+            const clips = gltf.animations;
 
-        clips.forEach(function (clip) {
-            mixer.clipAction(clip).play();
-        });
+            clips.forEach(function (clip) {
+                mixer.clipAction(clip).play();
+            });
 
-        scene.add(envAnimated);
-    });
+            scene.add(envAnimated);
+        })
+        .catch(() => {});
 
     return updateMixer;
 }

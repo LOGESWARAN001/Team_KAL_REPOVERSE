@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { findTiles, getTileTypes, initializeTiles } from "./algo";
 import { fetchRepository, getRepositoryCityData } from "./api";
+import { clearAssetLoaderCache } from "./assetLoader.js";
 import { clearBuildingRegistry } from "./buildingRegistry";
 import {
     clearBuildingSelection,
@@ -108,6 +109,7 @@ function returnToLanding() {
     repositoryExplorer.hide();
     cityGenerated = false;
     clearScene(scene);
+    clearAssetLoaderCache();
     enteredInfo = false;
     enterLandingMode();
 }
@@ -210,10 +212,7 @@ function onCanvasPointerDown(event) {
         const meta = selectBuildingFromObject(hit.object, {
             focusCamera: true,
         });
-        if (meta) {
-            repositoryExplorer.showFileDetails(meta);
-            return;
-        }
+        if (meta) return;
     }
     clearBuildingSelection();
     hideBuildingInfo();

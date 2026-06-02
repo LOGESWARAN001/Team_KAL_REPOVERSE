@@ -83,6 +83,8 @@ function applyHighlight(buildingId) {
     const entry = getBuilding(buildingId);
     if (!entry) return;
 
+    const touched = new Set();
+
     for (const root of entry.meshes) {
         root.traverse((child) => {
             if (!child.isMesh || !child.material) return;
@@ -90,7 +92,8 @@ function applyHighlight(buildingId) {
                 ? child.material
                 : [child.material];
             for (const mat of materials) {
-                if (!mat.emissive) continue;
+                if (!mat.emissive || touched.has(mat)) continue;
+                touched.add(mat);
                 highlightMaterials.push({
                     mat,
                     emissive: mat.emissive.getHex(),

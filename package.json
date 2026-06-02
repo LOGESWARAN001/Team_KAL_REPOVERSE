@@ -5,7 +5,8 @@
     "main": "main.js",
     "scripts": {
         "dev": "vite --host",
-        "build": "vite build",
+        "build": "node scripts/verify-glb-assets.mjs && vite build",
+        "verify:assets": "node scripts/verify-glb-assets.mjs",
         "format": "run-p -l format:*",
         "format:eslint": "eslint --fix .",
         "format:prettier": "prettier --write .",
