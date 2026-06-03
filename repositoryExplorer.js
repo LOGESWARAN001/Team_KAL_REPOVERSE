@@ -83,6 +83,21 @@ export class RepositoryExplorer {
         const lines = meta.lines != null ? meta.lines.toLocaleString() : "—";
         const size = meta.sizeFormatted || "—";
         const language = meta.language || "—";
+
+        let buildHtml = "";
+        if (meta.buildFailed && meta.buildFailure) {
+            const f = meta.buildFailure;
+            const sev = meta.fireSeverity || "medium";
+            buildHtml = `
+                <div class="repo-explorer-details-section repo-explorer-details-section--fire">
+                    <p class="repo-explorer-details-subtitle">🔥 BUILD FAILED</p>
+                    <div class="repo-explorer-details-row"><span>Workflow</span><span>${escapeHtml(f.workflowName)}</span></div>
+                    <div class="repo-explorer-details-row"><span>Failed Step</span><span>${escapeHtml(f.failedStep)}</span></div>
+                    <div class="repo-explorer-details-row"><span>Branch</span><span>${escapeHtml(f.branch || "—")}</span></div>
+                    <div class="repo-explorer-details-row"><span>Severity</span><span class="repo-explorer-fire-severity repo-explorer-fire-severity--${sev}">${escapeHtml(sev)}</span></div>
+                </div>`;
+        }
+
         this.detailsEl.innerHTML = `
             <p class="repo-explorer-details-title">${escapeHtml(
                 meta.fileName,
@@ -97,6 +112,7 @@ export class RepositoryExplorer {
             <div class="repo-explorer-details-row"><span>Language</span><span>${escapeHtml(
                 language,
             )}</span></div>
+            ${buildHtml}
         `;
     }
 

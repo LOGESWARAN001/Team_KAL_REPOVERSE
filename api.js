@@ -2,9 +2,14 @@
  * GitHub repository API and grid conversion.
  */
 
+import { getGithubToken, hasGithubToken } from "./githubAuth.js";
 import { buildRepositoryGrid } from "./repoGrid.js";
 
-const GITHUB_API = "https://api.github.com";
+const GITHUB_API = import.meta.env.DEV
+    ? "/github-api"
+    : "https://api.github.com";
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const repoCache = new Map();
 
 export function parseRepositoryUrl(input) {
     const trimmed = input.trim();
@@ -34,21 +39,75 @@ export function parseRepositoryUrl(input) {
     return { owner, repo, fullName: `${owner}/${repo}` };
 }
 
-async function githubFetch(path) {
+function getGithubHeaders() {
+    const headers = {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "GitHubCity/1.0",
+    };
+    const token = getGithubToken();
+    if (token) {
+        if (import.meta.env.DEV) {
+            // Dev server proxy reads this and attaches Authorization server-side.
+            headers["X-GitHub-Token"] = token;
+        } else {
+            headers.Authorization = `Bearer ${token}`;
+        }
+    }
+    return headers;
+}
+
+export async function githubFetch(path) {
     const response = await fetch(`${GITHUB_API}${path}`, {
-        headers: { Accept: "application/vnd.github+json" },
+        headers: getGithubHeaders(),
     });
+
+    let body = null;
+    try {
+        body = await response.json();
+    } catch {
+        body = null;
+    }
+
     if (!response.ok) {
-        const error = new Error(`GitHub API error: ${response.status}`);
+        const error = new Error(
+            body?.message || `GitHub API error: ${response.status}`,
+        );
         error.status = response.status;
+        error.documentationUrl = body?.documentation_url;
         throw error;
     }
-    return response.json();
+
+    return body;
+}
+
+function getCachedRepo(cacheKey) {
+    const entry = repoCache.get(cacheKey);
+    if (!entry) return null;
+    if (Date.now() - entry.time > CACHE_TTL_MS) {
+        repoCache.delete(cacheKey);
+        return null;
+    }
+    return entry.data;
+}
+
+function setCachedRepo(cacheKey, data) {
+    repoCache.set(cacheKey, { time: Date.now(), data });
+}
+
+export function clearRepoCache() {
+    repoCache.clear();
 }
 
 export async function fetchRepository(repoInput) {
     const parsed = parseRepositoryUrl(repoInput);
-    if (!parsed) return null;
+    if (!parsed) {
+        return { error: "invalid_url" };
+    }
+
+    const cacheKey = parsed.fullName.toLowerCase();
+    const cached = getCachedRepo(cacheKey);
+    if (cached) return cached;
 
     try {
         const repoData = await githubFetch(
@@ -59,6 +118,7 @@ export async function fetchRepository(repoInput) {
             `/repos/${parsed.owner}/${parsed.repo}/git/trees/${branch}?recursive=1`,
         );
 
+        let result;
         if (treeData.truncated) {
             const shallowTree = await githubFetch(
                 `/repos/${parsed.owner}/${parsed.repo}/git/trees/${branch}`,
@@ -68,12 +128,30 @@ export async function fetchRepository(repoInput) {
                 parsed.repo,
                 shallowTree.tree,
             );
-            return buildRepoResult(parsed, repoData, files);
+            result = buildRepoResult(parsed, repoData, files);
+        } else {
+            result = buildRepoResult(parsed, repoData, treeData.tree || []);
         }
 
-        return buildRepoResult(parsed, repoData, treeData.tree || []);
-    } catch {
-        return null;
+        setCachedRepo(cacheKey, result);
+        return result;
+    } catch (err) {
+        if (err.status === 404) {
+            return { error: "not_found", fullName: parsed.fullName };
+        }
+        if (err.status === 403) {
+            const isRateLimit = /rate limit/i.test(err.message || "");
+            return {
+                error: isRateLimit ? "rate_limit" : "forbidden",
+                message: err.message,
+                fullName: parsed.fullName,
+            };
+        }
+        return {
+            error: "network",
+            message: err.message,
+            fullName: parsed.fullName,
+        };
     }
 }
 
@@ -112,6 +190,7 @@ function buildRepoResult(parsed, repoData, tree) {
         explorerFiles,
         stats,
         fullName: parsed.fullName,
+        defaultBranch: repoData.default_branch || "main",
     };
 }
 
@@ -123,4 +202,27 @@ export function getRepositoryCityData(repoResult) {
         explorerFiles: repoResult.explorerFiles,
         stats: repoResult.stats,
     };
+}
+
+export function getFetchErrorMessage(result) {
+    switch (result?.error) {
+        case "invalid_url":
+            return "That does not look like a valid GitHub repository URL. Use owner/repo or a full github.com link.";
+        case "not_found":
+            return `Repository "${result.fullName || "unknown"}" was not found. Check that it is public and spelled correctly.`;
+        case "rate_limit":
+            return import.meta.env.DEV
+                ? "GitHub API rate limit reached. Restart the dev server (npm run dev) so your .env token loads, or paste a token in the field below."
+                : hasGithubToken()
+                  ? "GitHub API rate limit reached even with your token. Wait a few minutes and try again."
+                  : "GitHub API rate limit reached. Add a personal access token below, or create a .env file with VITE_GITHUB_TOKEN, then try again.";
+        case "forbidden":
+            return "GitHub denied access to this repository. It may be private — add a VITE_GITHUB_TOKEN with repo scope.";
+        case "network":
+            return result.message
+                ? `Could not reach GitHub: ${result.message}`
+                : "Could not reach GitHub. Check your connection and try again.";
+        default:
+            return "Could not load that repository. Check the URL and try again.";
+    }
 }

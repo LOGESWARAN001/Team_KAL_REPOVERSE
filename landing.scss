@@ -410,6 +410,55 @@ body.landing-mode {
     }
 }
 
+.landing-token-details {
+    margin-top: 1rem;
+    text-align: left;
+    font-size: 13px;
+    color: var(--landing-text-secondary);
+
+    summary {
+        cursor: pointer;
+        color: var(--landing-accent);
+        font-weight: 500;
+        list-style: none;
+
+        &::-webkit-details-marker {
+            display: none;
+        }
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &[open] summary {
+        margin-bottom: 0.5rem;
+    }
+}
+
+.landing-token-hint {
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+    color: var(--landing-text-secondary);
+
+    a {
+        color: var(--landing-accent);
+    }
+
+    code {
+        font-size: 11px;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 1px 4px;
+        border-radius: 3px;
+    }
+}
+
+.landing-token-input {
+    margin-top: 0.25rem;
+    font-size: 13px;
+}
+
 .landing-examples {
     margin-top: 1.25rem;
     font-size: 12px;

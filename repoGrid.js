@@ -90,7 +90,12 @@ export function formatFileSize(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function isWorkflowPath(path) {
+    return /^\.github\/workflows\/.+\.(ya?ml)$/i.test(path);
+}
+
 function shouldSkipPath(path) {
+    if (isWorkflowPath(path)) return false;
     const segments = path.split("/");
     return segments.some(
         (seg) =>
@@ -177,7 +182,8 @@ export function buildRepositoryGrid(treeFiles) {
         if (entry.type !== "blob") continue;
         if (shouldSkipPath(entry.path)) continue;
         const name = getFileName(entry.path);
-        if (!name || name.startsWith(".")) continue;
+        if (!name) continue;
+        if (name.startsWith(".") && !isWorkflowPath(entry.path)) continue;
         const folder = getFolderPath(entry.path);
         const lines = estimateLinesFromSize(entry.size || 0);
         files.push({
@@ -196,7 +202,13 @@ export function buildRepositoryGrid(treeFiles) {
     });
 
     const truncated = files.length > MAX_FILES;
-    const limitedFiles = files.slice(0, MAX_FILES);
+    const workflowFiles = files.filter((f) => isWorkflowPath(f.path));
+    const otherFiles = files.filter((f) => !isWorkflowPath(f.path));
+    const roomForOthers = Math.max(0, MAX_FILES - workflowFiles.length);
+    const limitedFiles = [
+        ...workflowFiles,
+        ...otherFiles.slice(0, roomForOthers),
+    ];
 
     const folderMap = new Map();
     for (const file of limitedFiles) {

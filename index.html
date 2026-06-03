@@ -224,6 +224,30 @@
                         <button type="submit" class="landing-submit">
                             Generate City
                         </button>
+                        <details class="landing-token-details">
+                            <summary>
+                                Hit rate limit? Add a GitHub token (optional)
+                            </summary>
+                            <p class="landing-token-hint">
+                                Create a free token at
+                                <a
+                                    href="https://github.com/settings/tokens/new?scopes=public_repo&description=GitHubCity"
+                                    target="_blank"
+                                    rel="noopener"
+                                    >github.com/settings/tokens</a
+                                >
+                                (classic, <code>public_repo</code> scope).
+                                Stored only in this browser session.
+                            </p>
+                            <input
+                                id="githubTokenInput"
+                                class="landing-input landing-token-input"
+                                type="password"
+                                autocomplete="off"
+                                spellcheck="false"
+                                placeholder="ghp_… or github_pat_…"
+                            />
+                        </details>
                     </form>
 
                     <!-- <p class="landing-examples">
@@ -290,6 +314,20 @@
             </div>
 
             <div id="buildingInfo" class="building-info hidden"></div>
+
+            <div
+                id="buildStatusPanel"
+                class="build-status-panel hidden"
+                role="dialog"
+                aria-label="Build status"
+            ></div>
+
+            <div
+                id="missionControlModal"
+                class="mission-control-modal hidden"
+                role="dialog"
+                aria-label="Mission Control"
+            ></div>
 
             <div id="repoExplorer" class="repo-explorer hidden">
                 <div class="repo-explorer-shell">

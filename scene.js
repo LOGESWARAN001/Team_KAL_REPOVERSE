@@ -10,6 +10,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
 import { cloneGltfScene, loadGltfAsset } from "./assetLoader.js";
 import { registerBuildingMesh } from "./buildingRegistry.js";
+import { updateCityRewards } from "./cityRewards.js";
 import {
     ENVIRONMENT_ANIMATED_ASSET,
     ENVIRONMENT_ASSET,
@@ -19,6 +20,7 @@ import {
     ROAD_TYPES,
     TREES_SMALL,
 } from "./constants";
+import { updateFireBuildings } from "./fireBuildings.js";
 
 // Global GLTF loader
 const loader = new GLTFLoader();
@@ -46,6 +48,8 @@ export function createScene() {
         requestAnimationFrame(animate);
         controls.update();
         updateMixer(delta);
+        updateFireBuildings(delta);
+        updateCityRewards(delta);
         composer.render();
     }
     animate();
@@ -61,7 +65,7 @@ export function createScene() {
 }
 
 export function clearScene(scene) {
-    const toDelete = ["Building", "Road", "Grass", "Tree"];
+    const toDelete = ["Building", "Road", "Grass", "Tree", "FireBuilding"];
     for (let i = scene.children.length - 1; i >= 0; i--) {
         if (toDelete.includes(scene.children[i].name))
             scene.remove(scene.children[i]);

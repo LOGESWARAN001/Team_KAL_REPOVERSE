@@ -46,3 +46,20 @@ export function expandBuildingBox(buildingId) {
     box.getSize(size);
     return { center, box, size };
 }
+
+export function markBuildingRepaired(buildingId) {
+    const entry = buildings.get(buildingId);
+    if (!entry) return;
+    entry.meta = {
+        ...entry.meta,
+        buildFailed: false,
+        hasBug: false,
+        repaired: true,
+        missionComplete: true,
+    };
+    for (const root of entry.meshes) {
+        if (root.userData) {
+            root.userData.repaired = true;
+        }
+    }
+}
