@@ -4,13 +4,21 @@
 
 import * as THREE from "three";
 
-import { expandBuildingBox, getBuilding } from "./buildingRegistry.js";
+import { getEnrichedBuildingMeta } from "./buildingIndex.js";
+import { computeBuildingRoofAnchor, getBuilding } from "./buildingRegistry.js";
+import {
+    logFireActivated,
+    logFireSkipped,
+    logIssueVisualization,
+} from "./cityDiagnostics.js";
 import {
     clearFireRegistry,
     getAllFireBuildings,
+    getFireBuilding,
     registerFireBuilding,
     removeFireBuilding,
 } from "./fireRegistry.js";
+import { shouldSpawnFireForMeta } from "./repoHealthAnalysis.js";
 
 const FIRE_ORANGE = 0xff6b35;
 const FIRE_YELLOW = 0xffd166;
@@ -21,26 +29,22 @@ const SEVERITY_CONFIG = {
     minor: {
         smokeRate: 0.35,
         flameCount: 2,
-        lightIntensity: 0.8,
         smokeHeight: 4,
-        trucks: 0,
-        watchers: 0,
     },
     medium: {
         smokeRate: 0.7,
         flameCount: 4,
-        lightIntensity: 1.4,
         smokeHeight: 7,
-        trucks: 0,
-        watchers: 2,
+    },
+    high: {
+        smokeRate: 0.95,
+        flameCount: 5,
+        smokeHeight: 9,
     },
     critical: {
         smokeRate: 1.2,
         flameCount: 6,
-        lightIntensity: 2.2,
         smokeHeight: 12,
-        trucks: 2,
-        watchers: 3,
     },
 };
 
@@ -60,9 +64,6 @@ function initSharedResources() {
         beacon: new THREE.CylinderGeometry(0.12, 0.12, 0.35, 8),
         burn: new THREE.PlaneGeometry(0.35, 0.45),
         heat: new THREE.PlaneGeometry(1.2, 0.6),
-        truckBody: new THREE.BoxGeometry(1.4, 0.5, 0.7),
-        truckCab: new THREE.BoxGeometry(0.5, 0.45, 0.65),
-        wheel: new THREE.CylinderGeometry(0.15, 0.15, 0.1, 8),
         citizen: new THREE.CylinderGeometry(0.14, 0.14, 0.7, 8),
     };
     sharedMaterials = {
@@ -115,13 +116,6 @@ function initSharedResources() {
             depthWrite: false,
             side: THREE.DoubleSide,
         }),
-        truck: new THREE.MeshLambertMaterial({ color: 0xcc0000 }),
-        truckDetail: new THREE.MeshLambertMaterial({
-            color: FIRE_YELLOW,
-            emissive: FIRE_YELLOW,
-            emissiveIntensity: 0.3,
-        }),
-        wheel: new THREE.MeshLambertMaterial({ color: 0x222222 }),
         citizen: new THREE.MeshLambertMaterial({ color: 0x5c7cfa }),
     };
 }
@@ -144,7 +138,7 @@ function createHologramSprite() {
     ctx.font = "bold 22px Inter, sans-serif";
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
-    ctx.fillText("⚠ BUILD FAILED", 128, 40);
+    ctx.fillText("⚠ SYNTAX ERROR", 128, 40);
 
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({
@@ -173,51 +167,6 @@ function createFlameMesh() {
     group.userData.outer = outer;
     group.userData.inner = inner;
     return group;
-}
-
-function createFireTruck(position, angle) {
-    initSharedResources();
-    const truck = new THREE.Group();
-    const body = new THREE.Mesh(
-        sharedGeometries.truckBody,
-        sharedMaterials.truck,
-    );
-    body.position.y = 0.35;
-    const cab = new THREE.Mesh(
-        sharedGeometries.truckCab,
-        sharedMaterials.truck,
-    );
-    cab.position.set(0.85, 0.38, 0);
-    const light = new THREE.Mesh(
-        sharedGeometries.beacon,
-        sharedMaterials.truckDetail,
-    );
-    light.position.set(0.85, 0.75, 0);
-    for (const wx of [-0.45, 0.45, 0.95]) {
-        const wheel = new THREE.Mesh(sharedGeometries.wheel, sharedMaterials.wheel);
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(wx, 0.15, 0.38);
-        truck.add(wheel);
-        const wheel2 = wheel.clone();
-        wheel2.position.z = -0.38;
-        truck.add(wheel2);
-    }
-    truck.add(body, cab, light);
-    truck.position.copy(position);
-    truck.rotation.y = angle;
-    return truck;
-}
-
-function createWatcher(position, lookAt) {
-    initSharedResources();
-    const citizen = new THREE.Mesh(
-        sharedGeometries.citizen,
-        sharedMaterials.citizen,
-    );
-    citizen.position.copy(position);
-    citizen.position.y = 0.45;
-    citizen.lookAt(lookAt.x, citizen.position.y, lookAt.z);
-    return citizen;
 }
 
 function applyBuildingFireGlow(buildingId, intensity) {
@@ -290,15 +239,61 @@ function spawnParticle(entry, kind, position, velocity, life) {
     entry.particles.push(p);
 }
 
-function setupFireBuilding(meta) {
-    const buildingId = meta.buildingId;
-    const bounds = expandBuildingBox(buildingId);
-    if (!bounds) return null;
+function placeFireOnRoof(entry) {
+    const anchor = computeBuildingRoofAnchor(entry.buildingId);
+    if (!anchor) return false;
 
-    const severity = meta.fireSeverity || "medium";
+    const { center, roofY, size, footprint, box } = anchor;
+    const spread = footprint * 0.22 + 0.12;
+
+    entry.bounds = { center, size, box, roofY, footprint };
+
+    for (let i = 0; i < entry.flames.length; i++) {
+        const flame = entry.flames[i];
+        const angle = (i / entry.flames.length) * Math.PI * 2;
+        flame.position.set(
+            center.x + Math.cos(angle) * spread,
+            roofY + 0.2,
+            center.z + Math.sin(angle) * spread,
+        );
+    }
+
+    entry.beacon.position.set(center.x, roofY + 0.55, center.z);
+    entry.hologram.position.set(
+        center.x,
+        roofY + entry.config.smokeHeight * 0.35,
+        center.z,
+    );
+    entry.heat.position.set(center.x, roofY + 0.12, center.z);
+
+    return true;
+}
+
+function purgeInvalidFires() {
+    for (const entry of getAllFireBuildings()) {
+        if (!shouldSpawnFireForMeta(entry.meta)) {
+            repairFireBuilding(entry.buildingId);
+            continue;
+        }
+        if (!computeBuildingRoofAnchor(entry.buildingId)) {
+            repairFireBuilding(entry.buildingId);
+        }
+    }
+}
+
+export function setupFireBuilding(meta) {
+    if (!fireGroup) return null;
+    initSharedResources();
+
+    const buildingId = meta.buildingId;
+    if (!shouldSpawnFireForMeta(meta)) return null;
+
+    const anchor = computeBuildingRoofAnchor(buildingId);
+    if (!anchor) return null;
+
+    const severity =
+        meta.fireSeverity || meta.severityLabel || "medium";
     const config = SEVERITY_CONFIG[severity] || SEVERITY_CONFIG.medium;
-    const { center, size, box } = bounds;
-    const roofY = box.max.y;
 
     const group = new THREE.Group();
     group.name = "FireBuilding";
@@ -306,10 +301,6 @@ function setupFireBuilding(meta) {
     const flames = [];
     for (let i = 0; i < config.flameCount; i++) {
         const flame = createFlameMesh();
-        const angle = (i / config.flameCount) * Math.PI * 2;
-        const rx = Math.cos(angle) * (size.x * 0.35 + 0.3);
-        const rz = Math.sin(angle) * (size.z * 0.35 + 0.3);
-        flame.position.set(center.x + rx, roofY, center.z + rz);
         flame.userData.phase = Math.random() * Math.PI * 2;
         flames.push(flame);
         group.add(flame);
@@ -319,63 +310,16 @@ function setupFireBuilding(meta) {
         sharedGeometries.beacon,
         sharedMaterials.beacon,
     );
-    beacon.position.set(center.x, roofY + 0.5, center.z);
     group.add(beacon);
 
     const hologram = createHologramSprite();
-    hologram.position.set(center.x, roofY + config.smokeHeight * 0.45, center.z);
     group.add(hologram);
 
     const heat = new THREE.Mesh(sharedGeometries.heat, sharedMaterials.heat);
-    heat.position.set(center.x, roofY + 0.8, center.z);
     heat.rotation.x = -Math.PI / 2;
     group.add(heat);
 
-    for (let i = 0; i < 3; i++) {
-        const burn = new THREE.Mesh(sharedGeometries.burn, sharedMaterials.burn);
-        burn.position.set(
-            center.x + (i - 1) * 0.4,
-            center.y + size.y * (0.3 + i * 0.15),
-            center.z + size.z * 0.48,
-        );
-        group.add(burn);
-    }
-
-    const warnLight = new THREE.PointLight(WARN_RED, config.lightIntensity, 18);
-    warnLight.position.set(center.x, roofY + 1, center.z);
-    group.add(warnLight);
-
-    const fireLight = new THREE.PointLight(FIRE_ORANGE, config.lightIntensity * 0.8, 14);
-    fireLight.position.set(center.x, roofY + 0.5, center.z);
-    group.add(fireLight);
-
-    const trucks = [];
-    for (let t = 0; t < config.trucks; t++) {
-        const angle = t * Math.PI + 0.4;
-        const dist = Math.max(size.x, size.z) * 0.7 + 2;
-        const pos = new THREE.Vector3(
-            center.x + Math.cos(angle) * dist,
-            0,
-            center.z + Math.sin(angle) * dist,
-        );
-        trucks.push(createFireTruck(pos, angle + Math.PI / 2));
-        group.add(trucks[trucks.length - 1]);
-    }
-
-    const watchers = [];
-    for (let w = 0; w < config.watchers; w++) {
-        const angle = w * 2.1 + 0.5;
-        const pos = new THREE.Vector3(
-            center.x + Math.cos(angle) * (size.x + 1.5),
-            0,
-            center.z + Math.sin(angle) * (size.z + 1.5),
-        );
-        const watcher = createWatcher(pos, center);
-        watchers.push(watcher);
-        group.add(watcher);
-    }
-
-    applyBuildingFireGlow(buildingId, severity === "critical" ? 0.35 : 0.2);
+    applyBuildingFireGlow(buildingId, severity === "critical" ? 0.12 : 0.06);
 
     const entry = {
         buildingId,
@@ -385,17 +329,18 @@ function setupFireBuilding(meta) {
         beacon,
         hologram,
         heat,
-        warnLight,
-        fireLight,
-        trucks,
-        watchers,
         particles: [],
         config,
-        bounds,
+        bounds: null,
         pulsePhase: Math.random() * Math.PI * 2,
         sparkTimer: 0,
         smokeTimer: 0,
     };
+
+    if (!placeFireOnRoof(entry)) {
+        restoreBuildingGlow(buildingId);
+        return null;
+    }
 
     fireGroup.add(group);
     registerFireBuilding(buildingId, entry);
@@ -409,36 +354,74 @@ export function spawnFireBuildings(
 ) {
     if (!fireGroup) return;
 
+    purgeInvalidFires();
+
     const candidates = [];
     const seen = new Set();
 
+    const consider = (raw) => {
+        const meta = getEnrichedBuildingMeta(raw);
+        if (!meta?.buildingId || seen.has(meta.buildingId)) return;
+        if (!shouldSpawnFireForMeta(meta)) {
+            logFireSkipped({
+                buildingId: meta.buildingId,
+                fileName: meta.fileName,
+                filePath: meta.filePath || meta.path,
+                issueCount: meta.issueCount || 0,
+                buildFailed: !!meta.buildFailed,
+                hasBug: !!meta.hasBug,
+                severity: meta.severityLabel,
+                fireTrigger: false,
+                reason: meta.repaired
+                    ? "Building repaired"
+                    : "No syntax issues on building",
+            });
+            return;
+        }
+        seen.add(meta.buildingId);
+        candidates.push(meta);
+    };
+
     for (const row of fileMetaGrid || []) {
         for (const cell of row) {
-            if (cell?.buildFailed && !seen.has(cell.buildingId)) {
-                candidates.push(cell);
-                seen.add(cell.buildingId);
-            }
+            consider(cell);
         }
     }
 
     for (const file of explorerFiles) {
-        if (file?.buildFailed && !seen.has(file.buildingId)) {
-            candidates.push(file);
-            seen.add(file.buildingId);
-        }
+        consider(file);
     }
 
     if (candidates.length === 0) return;
 
     let spawned = 0;
     for (const meta of candidates) {
-        if (expandBuildingBox(meta.buildingId)) {
+        if (getFireBuilding(meta.buildingId)) continue;
+        if (computeBuildingRoofAnchor(meta.buildingId)) {
             setupFireBuilding(meta);
             spawned++;
+            logFireActivated({
+                buildingId: meta.buildingId,
+                fileName: meta.fileName,
+                filePath: meta.filePath || meta.path,
+                issueCount: meta.issueCount || 0,
+                fireActive: true,
+                buildFailed: !!meta.buildFailed,
+                severity: meta.fireSeverity || meta.severityLabel,
+            });
+            logIssueVisualization({
+                filePath: meta.filePath || meta.path,
+                issuesFound: meta.issueCount || 0,
+                severity: meta.severityLabel || meta.fireSeverity,
+                mappedBuilding: meta.buildingId,
+                fireTrigger: true,
+                bugIndicator: false,
+                healthScore: meta.healthScore,
+            });
         }
     }
 
-    if (spawned === 0 && attempt < 25) {
+    if (spawned === 0 && attempt < 80) {
         setTimeout(
             () => spawnFireBuildings(fileMetaGrid, explorerFiles, attempt + 1),
             150,
@@ -462,10 +445,7 @@ function animateBeacon(entry, delta) {
     entry.beacon.rotation.y += delta * 4;
     entry.pulsePhase += delta * 3;
     const pulse = 0.5 + Math.sin(entry.pulsePhase) * 0.5;
-    entry.warnLight.intensity = entry.config.lightIntensity * (0.7 + pulse * 0.6);
-    entry.fireLight.intensity =
-        entry.config.lightIntensity * 0.8 * (0.8 + Math.sin(entry.pulsePhase * 2) * 0.3);
-    entry.beacon.material.emissiveIntensity = 0.7 + pulse * 0.8;
+    entry.beacon.material.emissiveIntensity = 0.35 + pulse * 0.35;
 
     if (entry.meta.fireSeverity === "critical") {
         entry.hologram.material.opacity = 0.75 + Math.sin(entry.pulsePhase * 5) * 0.25;
@@ -474,7 +454,7 @@ function animateBeacon(entry, delta) {
 
 function animateHeat(entry, delta) {
     entry.heat.material.opacity =
-        0.1 + Math.sin(entry.pulsePhase * 4) * 0.08;
+        0.04 + Math.sin(entry.pulsePhase * 4) * 0.03;
     entry.heat.scale.x = 1 + Math.sin(entry.pulsePhase * 2) * 0.15;
     entry.heat.rotation.z += delta * 0.5;
 }
@@ -483,8 +463,9 @@ function emitSmokeAndSparks(entry, delta) {
     entry.smokeTimer -= delta;
     entry.sparkTimer -= delta;
 
-    const { center, box } = entry.bounds;
-    const roofY = box.max.y;
+    if (!entry.bounds?.center) return;
+    const { center, roofY, footprint } = entry.bounds;
+    const spread = (footprint || 1) * 0.35;
 
     if (entry.smokeTimer <= 0) {
         entry.smokeTimer = 0.08 / entry.config.smokeRate;
@@ -495,9 +476,9 @@ function emitSmokeAndSparks(entry, delta) {
                 entry,
                 kind,
                 new THREE.Vector3(
-                    center.x + (Math.random() - 0.5) * 1.2,
-                    roofY + 0.3,
-                    center.z + (Math.random() - 0.5) * 1.2,
+                    center.x + (Math.random() - 0.5) * spread,
+                    roofY + 0.35,
+                    center.z + (Math.random() - 0.5) * spread,
                 ),
                 new THREE.Vector3(
                     (Math.random() - 0.5) * 0.4,
@@ -516,9 +497,9 @@ function emitSmokeAndSparks(entry, delta) {
                 entry,
                 "spark",
                 new THREE.Vector3(
-                    center.x + (Math.random() - 0.5) * 1.5,
-                    roofY + 0.2,
-                    center.z + (Math.random() - 0.5) * 1.5,
+                    center.x + (Math.random() - 0.5) * spread,
+                    roofY + 0.25,
+                    center.z + (Math.random() - 0.5) * spread,
                 ),
                 new THREE.Vector3(
                     (Math.random() - 0.5) * 1.5,
@@ -558,26 +539,21 @@ function updateParticles(entry, delta) {
     entry.particles = entry.particles.filter((p) => p.active);
 }
 
-function animateWatchers(entry, delta) {
-    for (const watcher of entry.watchers) {
-        watcher.rotation.y = Math.sin(entry.pulsePhase + watcher.id) * 0.15;
-        watcher.position.y = 0.45 + Math.sin(entry.pulsePhase * 2) * 0.03;
-    }
-    for (const truck of entry.trucks) {
-        truck.children[truck.children.length - 1].rotation.y += delta * 6;
-    }
-}
-
 export function updateFireBuildings(delta) {
     if (!fireGroup) return;
 
     for (const entry of getAllFireBuildings()) {
+        if (!shouldSpawnFireForMeta(entry.meta)) {
+            repairFireBuilding(entry.buildingId);
+            continue;
+        }
+        if (!placeFireOnRoof(entry)) continue;
+
         animateFlames(entry, delta);
         animateBeacon(entry, delta);
         animateHeat(entry, delta);
         emitSmokeAndSparks(entry, delta);
         updateParticles(entry, delta);
-        animateWatchers(entry, delta);
     }
 }
 

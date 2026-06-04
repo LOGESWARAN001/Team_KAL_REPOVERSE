@@ -3,9 +3,18 @@
  */
 
 import { githubFetch } from "./api.js";
+import { normalizeRepoPath } from "./buildingIndex.js";
+import { logIssueVisualization, logScanPipeline } from "./cityDiagnostics.js";
+import {
+    buildCityPathSet,
+    findExplorerFileByPath,
+    resolvePathInSet,
+} from "./issuePathMapping.js";
+import { shouldSpawnFireForMeta } from "./repoHealthAnalysis.js";
 
 const MAX_RUNS = 20;
 const MAX_JOB_FETCH = 8;
+const MAX_ANNOTATION_RUNS = 6;
 
 const CI_RELATED_PATTERN =
     /package\.json|package-lock\.json|yarn\.lock|pnpm-lock|Dockerfile|docker-compose|Makefile|makefile|Jenkinsfile|\.gitlab-ci|azure-pipelines|\.circleci|tsconfig\.json|vite\.config|webpack\.config/i;
@@ -117,7 +126,9 @@ function pathsMatch(filePath, workflowPath) {
 
 function findFileForFailure(failure, explorerFiles, usedBuildingIds) {
     const workflowFiles = explorerFiles.filter((f) =>
-        /\.github\/workflows\/.+\.(ya?ml)$/i.test(f.path),
+        /\.github\/workflows\/.+\.(ya?ml)$/i.test(
+            normalizeRepoPath(f.path),
+        ),
     );
     const ciFiles = explorerFiles.filter((f) =>
         CI_RELATED_PATTERN.test(f.path),
@@ -129,7 +140,7 @@ function findFileForFailure(failure, explorerFiles, usedBuildingIds) {
             : null;
 
     for (const file of workflowFiles) {
-        if (pathsMatch(file.path, failure.workflowPath)) {
+        if (pathsMatch(normalizeRepoPath(file.path), failure.workflowPath)) {
             const pick = tryPick(file);
             if (pick) return pick;
         }
@@ -160,12 +171,91 @@ function findFileForFailure(failure, explorerFiles, usedBuildingIds) {
         if (pick) return pick;
     }
 
-    for (const file of explorerFiles) {
-        const pick = tryPick(file);
-        if (pick) return pick;
+    return null;
+}
+
+/**
+ * Maps CI check-run annotations (exact file paths from failed checks) to city files.
+ */
+export async function fetchFailureAnnotationsByPath(
+    owner,
+    repo,
+    failures = [],
+    explorerFiles = [],
+) {
+    const { pathSet } = buildCityPathSet(explorerFiles);
+    const byPath = new Map();
+    const seenRuns = new Set();
+
+    for (const failure of failures.slice(0, MAX_ANNOTATION_RUNS)) {
+        if (!failure?.runId || seenRuns.has(failure.runId)) continue;
+        seenRuns.add(failure.runId);
+
+        try {
+            const run = await githubFetch(
+                `/repos/${owner}/${repo}/actions/runs/${failure.runId}`,
+            );
+            const sha = run?.head_sha;
+            if (!sha) continue;
+
+            const checkRuns = await githubFetch(
+                `/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`,
+            );
+
+            for (const check of checkRuns?.check_runs || []) {
+                if (check.conclusion !== "failure") continue;
+
+                let annotations = [];
+                try {
+                    annotations = await githubFetch(
+                        `/repos/${owner}/${repo}/check-runs/${check.id}/annotations?per_page=100`,
+                    );
+                } catch {
+                    continue;
+                }
+
+                const list = Array.isArray(annotations)
+                    ? annotations
+                    : annotations?.annotations || [];
+
+                for (const ann of list) {
+                    if (
+                        ann.annotation_level !== "failure" &&
+                        ann.annotation_level !== "warning"
+                    ) {
+                        continue;
+                    }
+                    const path = resolvePathInSet(ann.path, pathSet);
+                    if (!path) continue;
+
+                    const entry = {
+                        path,
+                        message: ann.message || ann.title || "Check failed",
+                        line: ann.start_line,
+                        failure,
+                        severity:
+                            ann.annotation_level === "failure"
+                                ? "high"
+                                : "medium",
+                    };
+                    if (!byPath.has(path)) byPath.set(path, entry);
+                }
+            }
+        } catch (err) {
+            logScanPipeline("CI annotations unavailable", {
+                runId: failure.runId,
+                status: err?.status,
+                message: err?.message,
+            });
+        }
     }
 
-    return null;
+    logScanPipeline("CI failure file paths", {
+        mappedPaths: byPath.size,
+        paths: [...byPath.keys()].slice(0, 12),
+    });
+
+    return byPath;
 }
 
 export async function fetchCiFailureData(
@@ -188,6 +278,8 @@ export async function fetchCiFailureData(
             hasFailures: false,
             defaultBranch,
             actionsUnavailable,
+            owner,
+            repo,
         };
     }
 
@@ -199,6 +291,8 @@ export async function fetchCiFailureData(
             hasFailures: false,
             defaultBranch,
             actionsUnavailable: false,
+            owner,
+            repo,
         };
     }
 
@@ -261,20 +355,42 @@ export async function fetchCiFailureData(
         hasFailures: failures.length > 0,
         defaultBranch,
         actionsUnavailable: false,
+        owner,
+        repo,
     };
 }
 
 function enrichMeta(meta, failure) {
+    const path = normalizeRepoPath(
+        failure.mappedToPath || meta.filePath || meta.path,
+    );
     return {
         ...meta,
         buildFailed: true,
+        hasBug: true,
+        issueCount: Math.max(meta.issueCount || 0, 1),
+        severityLabel: failure.fireSeverity || meta.severityLabel || "high",
+        primaryIssue: {
+            type: "bug",
+            severity: failure.fireSeverity || "high",
+            title:
+                failure.failedStep ||
+                failure.workflowName ||
+                "CI check failed",
+        },
         buildFailure: failure,
-        fireSeverity: failure.fireSeverity || "medium",
-        fireMappedFrom: failure.workflowPath,
+        fireSeverity: failure.fireSeverity || "high",
+        fireMappedFrom: failure.mappedFrom || failure.workflowPath,
+        filePath: path,
+        path,
     };
 }
 
-export function applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext) {
+export async function applyCiFailuresToCity(
+    fileMetaGrid,
+    explorerFiles,
+    ciContext,
+) {
     if (!ciContext?.hasFailures || !explorerFiles?.length) {
         return { fileMetaGrid, explorerFiles, fireBuildingIds: [] };
     }
@@ -311,8 +427,39 @@ export function applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext) {
         }
     }
 
+    const annotationsByPath = await fetchFailureAnnotationsByPath(
+        ciContext.owner,
+        ciContext.repo,
+        sortedFailures,
+        explorerFiles,
+    );
+
+    for (const [path, ann] of annotationsByPath) {
+        const file = findExplorerFileByPath(explorerFiles, path);
+        if (!file?.buildingId || usedBuildingIds.has(file.buildingId)) continue;
+
+        usedBuildingIds.add(file.buildingId);
+        buildingFailure.set(file.buildingId, {
+            ...(ann.failure || sortedFailures[0]),
+            fireSeverity: computeFireSeverity(
+                ann.failure || sortedFailures[0],
+                ciContext.defaultBranch,
+            ),
+            mappedToPath: path,
+            failedStep: ann.message,
+            failedLine: ann.line,
+            mappedFrom: "check-annotation",
+        });
+    }
+
     if (buildingFailure.size === 0 && sortedFailures.length > 0) {
-        const fallback = explorerFiles.find((f) => f.buildingId);
+        const fallback = explorerFiles.find(
+            (f) =>
+                f.buildingId &&
+                /\.github\/workflows\/.+\.(ya?ml)$/i.test(
+                    normalizeRepoPath(f.path),
+                ),
+        );
         if (fallback) {
             const worst = sortedFailures[0];
             buildingFailure.set(fallback.buildingId, {
@@ -321,24 +468,41 @@ export function applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext) {
                     worst,
                     ciContext.defaultBranch,
                 ),
-                mappedToPath: fallback.path,
+                mappedToPath: normalizeRepoPath(fallback.path),
+                mappedFrom: "workflow-fallback",
             });
         }
     }
 
     const fireBuildingIds = [...buildingFailure.keys()];
 
+    const stampCiMeta = (cell, failure) => {
+        const enriched = enrichMeta(cell, failure);
+        const path = normalizeRepoPath(enriched.filePath || enriched.path);
+        logIssueVisualization({
+            filePath: path,
+            issuesFound: 1,
+            severity: enriched.fireSeverity || "medium",
+            mappedBuilding: enriched.buildingId,
+            fireTrigger: shouldSpawnFireForMeta(enriched),
+            bugIndicator: false,
+            healthScore: enriched.healthScore,
+            reason: "CI failure mapped",
+        });
+        return enriched;
+    };
+
     const newGrid = (fileMetaGrid || []).map((row) =>
         row.map((cell) => {
             if (!cell?.buildingId) return cell;
             const failure = buildingFailure.get(cell.buildingId);
-            return failure ? enrichMeta(cell, failure) : cell;
+            return failure ? stampCiMeta(cell, failure) : cell;
         }),
     );
 
     const newExplorer = explorerFiles.map((file) => {
         const failure = buildingFailure.get(file.buildingId);
-        return failure ? enrichMeta(file, failure) : file;
+        return failure ? stampCiMeta(file, failure) : file;
     });
 
     return {
@@ -348,12 +512,28 @@ export function applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext) {
     };
 }
 
-export function enrichFileMetaGrid(fileMetaGrid, ciContext, explorerFiles) {
-    return applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext)
-        .fileMetaGrid;
+export async function enrichFileMetaGrid(
+    fileMetaGrid,
+    ciContext,
+    explorerFiles,
+) {
+    const result = await applyCiFailuresToCity(
+        fileMetaGrid,
+        explorerFiles,
+        ciContext,
+    );
+    return result.fileMetaGrid;
 }
 
-export function enrichExplorerFiles(explorerFiles, ciContext, fileMetaGrid) {
-    return applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext)
-        .explorerFiles;
+export async function enrichExplorerFiles(
+    explorerFiles,
+    ciContext,
+    fileMetaGrid,
+) {
+    const result = await applyCiFailuresToCity(
+        fileMetaGrid,
+        explorerFiles,
+        ciContext,
+    );
+    return result.explorerFiles;
 }

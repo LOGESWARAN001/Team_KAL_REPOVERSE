@@ -3,6 +3,12 @@
  */
 
 import {
+    normalizeRepoPath,
+    resolveBuildingIdByPath,
+    resolveFileByPath,
+    resolveFileForBuilding,
+} from "./buildingIndex.js";
+import {
     fileIconHtml,
     folderChevronHtml,
     folderIconHtml,
@@ -37,6 +43,7 @@ export class RepositoryExplorer {
         this.flatRows = [];
         this.expandedPaths = new Set(["/"]);
         this.selectedBuildingId = null;
+        this.selectedFilePath = null;
         this.searchQuery = "";
         this.onFileSelect = null;
 
@@ -52,7 +59,7 @@ export class RepositoryExplorer {
             this.scheduleRender();
         });
         this.treeWrap.addEventListener("scroll", () => this.scheduleRender());
-        this.itemsEl.addEventListener("click", (e) => this.onTreeClick(e));
+        this.treeWrap.addEventListener("click", (e) => this.onTreeClick(e));
     }
 
     setOnFileSelect(callback) {
@@ -60,11 +67,21 @@ export class RepositoryExplorer {
     }
 
     setFiles(explorerFiles, repoName = "repository") {
-        this.files = explorerFiles || [];
+        this.files = (explorerFiles || []).map((f) => {
+            const path = normalizeRepoPath(f.path);
+            return path
+                ? {
+                      ...f,
+                      path,
+                      filePath: normalizeRepoPath(f.filePath || f.path),
+                  }
+                : f;
+        });
         this.repoName = repoName;
         this.treeRoot = buildTreeFromFiles(this.files, repoName);
         this.expandedPaths = new Set(["/"]);
         this.selectedBuildingId = null;
+        this.selectedFilePath = null;
         this.searchQuery = "";
         this.searchInput.value = "";
         this.clearFileDetails();
@@ -80,6 +97,7 @@ export class RepositoryExplorer {
             return;
         }
         const path = meta.filePath || meta.path || "—";
+        const title = meta.fileName || meta.name || "—";
         const lines = meta.lines != null ? meta.lines.toLocaleString() : "—";
         const size = meta.sizeFormatted || "—";
         const language = meta.language || "—";
@@ -98,10 +116,19 @@ export class RepositoryExplorer {
                 </div>`;
         }
 
+        if (meta.hasBug && meta.primaryIssue) {
+            const p = meta.primaryIssue;
+            const issueCount = meta.issueCount || 1;
+            buildHtml += `
+                <div class="repo-explorer-details-section repo-explorer-details-section--issue">
+                    <p class="repo-explorer-details-subtitle">⚠️ ${issueCount} issue${issueCount > 1 ? "s" : ""} detected</p>
+                    <div class="repo-explorer-details-row"><span>Severity</span><span class="repo-explorer-fire-severity repo-explorer-fire-severity--${meta.severityLabel || p.severity || "medium"}">${escapeHtml(meta.severityLabel || p.severity || "medium")}</span></div>
+                    <div class="repo-explorer-details-row"><span>Health</span><span>${meta.healthScore ?? "—"}</span></div>
+                </div>`;
+        }
+
         this.detailsEl.innerHTML = `
-            <p class="repo-explorer-details-title">${escapeHtml(
-                meta.fileName,
-            )}</p>
+            <p class="repo-explorer-details-title">${escapeHtml(title)}</p>
             <div class="repo-explorer-details-row"><span>Path</span><span>${escapeHtml(
                 path,
             )}</span></div>
@@ -150,19 +177,33 @@ export class RepositoryExplorer {
         this.toggleBtn.setAttribute("aria-expanded", "false");
     }
 
-    selectBuildingId(buildingId) {
+    selectBuildingId(buildingId, preferredPath = null) {
         this.selectedBuildingId = buildingId || null;
+        this.selectedFilePath = preferredPath
+            ? normalizeRepoPath(preferredPath)
+            : null;
         if (buildingId) {
-            const file = this.files.find((f) => f.buildingId === buildingId);
+            const file = resolveFileForBuilding(
+                this.files,
+                buildingId,
+                this.selectedFilePath,
+            );
             if (file) {
+                this.selectedFilePath = normalizeRepoPath(file.path);
                 this.expandPathToFile(file.path);
                 this.rebuildFlatRows();
             }
             this.scheduleRender();
             this.scrollToSelected();
         } else {
+            this.selectedFilePath = null;
             this.scheduleRender();
         }
+    }
+
+    /** Alias used by main selection sync */
+    selectBuildingById(buildingId, preferredPath = null) {
+        this.selectBuildingId(buildingId, preferredPath);
     }
 
     expandPathToFile(filePath) {
@@ -280,7 +321,12 @@ export class RepositoryExplorer {
                 const hasBuilding = !!row.node.buildingId;
                 el.classList.add("repo-tree-file");
                 if (!hasBuilding) el.classList.add("no-building");
-                if (row.node.buildingId === this.selectedBuildingId) {
+                const rowPath = normalizeRepoPath(row.node.path);
+                const isSelected =
+                    row.node.buildingId === this.selectedBuildingId &&
+                    (!this.selectedFilePath ||
+                        rowPath === this.selectedFilePath);
+                if (isSelected) {
                     el.classList.add("selected");
                 }
                 el.innerHTML = `<span class="repo-tree-chevron repo-tree-spacer"></span>${fileIconHtml(
@@ -317,23 +363,40 @@ export class RepositoryExplorer {
             return;
         }
 
-        const buildingId = row.dataset.buildingId;
+        if (!path) return;
+
+        const normalizedPath = normalizeRepoPath(path);
+        const file = resolveFileByPath(this.files, normalizedPath);
+        const buildingId =
+            resolveBuildingIdByPath(normalizedPath) || file?.buildingId || null;
         if (!buildingId) return;
 
         this.selectedBuildingId = buildingId;
+        this.selectedFilePath = normalizedPath;
         this.scheduleRender();
-        const file = this.files.find((f) => f.buildingId === buildingId);
-        if (file) this.showFileDetails(file);
-        if (this.onFileSelect) this.onFileSelect(file);
+        const payload = file || {
+            path: normalizedPath,
+            filePath: normalizedPath,
+            fileName: normalizedPath.split("/").pop(),
+            buildingId,
+        };
+        if (this.onFileSelect) this.onFileSelect(payload);
     }
 
     scrollToSelected() {
         if (!this.selectedBuildingId) return;
-        const index = this.flatRows.findIndex(
-            (r) =>
-                r.type === "file" &&
-                r.node.buildingId === this.selectedBuildingId,
-        );
+        const index = this.flatRows.findIndex((r) => {
+            if (r.type !== "file") return false;
+            const rowPath = normalizeRepoPath(r.node.path);
+            if (this.selectedFilePath) {
+                return rowPath === this.selectedFilePath;
+            }
+            return (
+                r.node.buildingId === this.selectedBuildingId ||
+                resolveBuildingIdByPath(r.node.path) ===
+                    this.selectedBuildingId
+            );
+        });
         if (index < 0) return;
         const top = index * ROW_HEIGHT;
         const viewHeight = this.treeWrap.clientHeight;
@@ -387,12 +450,13 @@ function buildTreeFromFiles(files, repoName = "repository") {
             ? file.path.slice(0, file.path.lastIndexOf("/"))
             : "";
         const parent = ensureFolder(parentPath);
+        const filePath = normalizeRepoPath(file.path);
         parent.children.push({
             type: "file",
             label: file.name,
-            path: file.path,
+            path: filePath,
             buildingId: file.buildingId,
-            file,
+            file: { ...file, path: filePath },
         });
     }
 

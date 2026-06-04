@@ -8,7 +8,23 @@ import {
     getRepositoryCityData,
 } from "./api";
 import { clearAssetLoaderCache } from "./assetLoader.js";
-import { clearBuildingRegistry } from "./buildingRegistry";
+import {
+    buildBuildingIndex,
+    normalizeRepoPath,
+    resolveBuildingIdByPath,
+    resolveFileForBuilding,
+    syncRegistryMetaFromIndex,
+    validateSelection,
+} from "./buildingIndex.js";
+import {
+    applyEffectsForBuildingMeta,
+    ensureBuildingIssueEffects,
+    reconcileBuildingIssueEffects,
+} from "./buildingIssueEffects.js";
+import {
+    clearBuildingRegistry,
+    setOnBuildingMeshRegistered,
+} from "./buildingRegistry";
 import {
     clearBuildingSelection,
     initBuildingSelection,
@@ -23,6 +39,13 @@ import {
     showBuildStatusPanel,
 } from "./buildStatusPanel.js";
 import { applyCiFailuresToCity, fetchCiFailureData } from "./ciAnalysis.js";
+import {
+    hideBuildingDebugLabel,
+    initCityDebugOverlay,
+    setCityDebugSceneRefs,
+    showBuildingDebugLabel,
+} from "./cityDebugOverlay.js";
+import { isCityDebugEnabled, logFileDetected } from "./cityDiagnostics.js";
 import { clearCityRewards, initCityRewards } from "./cityRewards.js";
 import { CityStatsPanel } from "./cityStatsPanel";
 import {
@@ -33,6 +56,11 @@ import {
 import { setGithubToken } from "./githubAuth.js";
 import { resetHeroProgress } from "./heroProgress.js";
 import {
+    clearIssueIndicators,
+    initIssueIndicators,
+    spawnIssueIndicators,
+} from "./issueIndicators.js";
+import {
     enterLandingMode,
     exitLandingMode,
     initLandingExperience,
@@ -42,7 +70,12 @@ import {
     setLoaderStep,
     showLandingLoader,
 } from "./landingLoader.js";
+import { initHeroChallengeModal } from "./heroChallengeModal.js";
 import { initMissionControl } from "./missionControl.js";
+import {
+    applyHealthToCity,
+    fetchRepoHealthData,
+} from "./repoHealthAnalysis.js";
 import { RepositoryExplorer } from "./repositoryExplorer";
 import {
     changeShadowPreset,
@@ -71,6 +104,7 @@ const cityStatsPanel = new CityStatsPanel(cityStatsEl);
 const urlParams = new URLSearchParams(window.location.search);
 
 const { scene, controls, camera, renderer } = createScene();
+setCityDebugSceneRefs(camera, renderer);
 const renderShiftZ = 0.38;
 
 const raycaster = new THREE.Raycaster();
@@ -83,41 +117,93 @@ let enteredInfo = false;
 
 initBuildingSelection(scene, camera, controls);
 initFireBuildings(scene);
+initIssueIndicators(scene);
+setOnBuildingMeshRegistered((meta) => {
+    applyEffectsForBuildingMeta(meta);
+});
+initCityDebugOverlay();
 initBuildStatusPanel();
 initCityRewards(scene);
-initMissionControl({
-    onComplete: (meta) => {
-        if (meta?.buildingId) {
-            selectBuildingById(meta.buildingId, {
-                force: true,
-                focusCamera: false,
-            });
-        }
-    },
-});
+const onHeroRepairComplete = (meta) => {
+    if (meta?.buildingId) {
+        selectBuildingById(meta.buildingId, {
+            force: true,
+            focusCamera: false,
+        });
+    }
+};
+
+initMissionControl({ onComplete: onHeroRepairComplete });
+initHeroChallengeModal({ onComplete: onHeroRepairComplete });
+
+function syncExplorerToBuilding(meta) {
+    if (!meta?.buildingId) return;
+    const path = normalizeRepoPath(meta.filePath || meta.path);
+    const file = resolveFileForBuilding(
+        repositoryExplorer.files,
+        meta.buildingId,
+        path,
+    );
+    const displayMeta = file
+        ? { ...meta, ...file, fileName: file.name || meta.fileName }
+        : meta;
+    repositoryExplorer.showFileDetails(displayMeta);
+    repositoryExplorer.selectBuildingById(meta.buildingId, path || file?.path);
+    if (!repositoryExplorer.panel.classList.contains("open")) {
+        repositoryExplorer.openPanel();
+    }
+}
+
+function resolvePanelMeta(meta) {
+    if (!meta?.buildingId) return meta;
+    const path = normalizeRepoPath(meta.filePath || meta.path);
+    const file = resolveFileForBuilding(
+        repositoryExplorer.files,
+        meta.buildingId,
+        path,
+    );
+    return file ? { ...meta, ...file, fileName: file.name || meta.fileName } : meta;
+}
 
 setOnSelectionChange((meta) => {
     if (meta) {
-        repositoryExplorer.showFileDetails(meta);
-        repositoryExplorer.selectBuildingId(meta.buildingId);
-        if (isIssueBuilding(meta)) {
-            showBuildStatusPanel(meta);
+        const panelMeta = resolvePanelMeta(meta);
+        if (isCityDebugEnabled()) {
+            validateSelection(
+                repositoryExplorer.files,
+                panelMeta.filePath || panelMeta.path,
+                panelMeta.buildingId,
+            );
+            showBuildingDebugLabel(panelMeta);
+        }
+        syncExplorerToBuilding(panelMeta);
+        if (isIssueBuilding(panelMeta)) {
+            showBuildStatusPanel(panelMeta);
+            ensureBuildingIssueEffects(panelMeta);
         } else {
             hideBuildStatusPanel();
         }
-        if (!repositoryExplorer.panel.classList.contains("open")) {
-            repositoryExplorer.openPanel();
-        }
     } else {
         hideBuildStatusPanel();
+        hideBuildingDebugLabel();
         repositoryExplorer.clearFileDetails();
         repositoryExplorer.selectBuildingId(null);
     }
 });
 
 repositoryExplorer.setOnFileSelect((file) => {
-    if (!file?.buildingId) return;
-    selectBuildingById(file.buildingId, { focusCamera: true });
+    const path = normalizeRepoPath(file?.path || file?.filePath);
+    if (!path) return;
+    const buildingId =
+        resolveBuildingIdByPath(path) || file?.buildingId || null;
+    if (!buildingId) return;
+    if (isCityDebugEnabled()) {
+        validateSelection(repositoryExplorer.files, path, buildingId);
+    }
+    selectBuildingById(buildingId, {
+        focusCamera: true,
+        force: true,
+    });
 });
 
 if (urlParams.get("repo")) {
@@ -248,7 +334,31 @@ async function generateCityFromRepo(repoInputValue) {
     const {
         fileMetaGrid: enrichedMetaGrid,
         explorerFiles: enrichedExplorerFiles,
-    } = applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext);
+    } = await applyCiFailuresToCity(fileMetaGrid, explorerFiles, ciContext);
+
+    const healthContext = await fetchRepoHealthData(
+        stats.owner,
+        stats.repo,
+        enrichedExplorerFiles,
+        repoResult.defaultBranch || "main",
+    );
+    const {
+        fileMetaGrid: healthMetaGrid,
+        explorerFiles: healthExplorerFiles,
+    } = applyHealthToCity(
+        enrichedMetaGrid,
+        enrichedExplorerFiles,
+        healthContext,
+    );
+
+    buildBuildingIndex(healthExplorerFiles, healthMetaGrid);
+
+    if (isCityDebugEnabled()) {
+        for (const file of healthExplorerFiles) {
+            if (file.buildingId) logFileDetected(file);
+        }
+    }
+
     currentRepoName = repoResult.fullName;
 
     setLoaderStep(4);
@@ -263,11 +373,26 @@ async function generateCityFromRepo(repoInputValue) {
 
     generateCity(contribs, {
         heightGrid,
-        fileMetaGrid: enrichedMetaGrid,
+        fileMetaGrid: healthMetaGrid,
     });
+    buildBuildingIndex(healthExplorerFiles, healthMetaGrid);
     initFireBuildings(scene);
-    spawnFireBuildings(enrichedMetaGrid, enrichedExplorerFiles);
-    repositoryExplorer.setFiles(enrichedExplorerFiles, currentRepoName);
+    syncRegistryMetaFromIndex();
+    clearIssueIndicators();
+    spawnFireBuildings(healthMetaGrid, healthExplorerFiles);
+    spawnIssueIndicators(healthMetaGrid, healthExplorerFiles);
+    reconcileBuildingIssueEffects(healthMetaGrid, healthExplorerFiles);
+    for (const delayMs of [1500, 4000, 8000]) {
+        setTimeout(
+            () =>
+                reconcileBuildingIssueEffects(
+                    healthMetaGrid,
+                    healthExplorerFiles,
+                ),
+            delayMs,
+        );
+    }
+    repositoryExplorer.setFiles(healthExplorerFiles, currentRepoName);
     cityGenerated = true;
 }
 
@@ -302,11 +427,13 @@ function onCanvasPointerDown(event) {
     hideBuildingInfo();
     hideBuildStatusPanel();
     repositoryExplorer.clearFileDetails();
+    repositoryExplorer.selectBuildingId(null);
 }
 
 function generateCity(contribs, options = {}) {
     clearScene(scene);
     clearFireBuildings();
+    clearIssueIndicators();
     clearCityRewards();
     clearBuildingRegistry();
     clearBuildingSelection();

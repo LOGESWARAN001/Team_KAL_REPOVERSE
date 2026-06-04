@@ -5,6 +5,10 @@
 import * as THREE from "three";
 
 import {
+    getBuildingMetaById,
+    getEnrichedBuildingMeta,
+} from "./buildingIndex.js";
+import {
     expandBuildingBox,
     getBuilding,
     getBuildingIdFromObject,
@@ -33,10 +37,23 @@ export function getSelectedBuildingId() {
     return selectedBuildingId;
 }
 
+function resolveSelectionMeta(buildingId) {
+    const entry = getBuilding(buildingId);
+    const indexed = getBuildingMetaById(buildingId);
+    if (entry?.meta) {
+        return getEnrichedBuildingMeta({ ...entry.meta, ...indexed });
+    }
+    return indexed;
+}
+
+function notifySelection(meta) {
+    if (onSelectionChange) onSelectionChange(meta || null);
+}
+
 export function clearBuildingSelection() {
     restoreHighlightMaterials();
     selectedBuildingId = null;
-    if (onSelectionChange) onSelectionChange(null);
+    notifySelection(null);
 }
 
 export function selectBuildingById(buildingId, options = {}, attempt = 0) {
@@ -44,17 +61,31 @@ export function selectBuildingById(buildingId, options = {}, attempt = 0) {
         clearBuildingSelection();
         return null;
     }
-    if (!getBuilding(buildingId)) {
-        if (attempt < 25 && options.retry !== false) {
+
+    const entry = getBuilding(buildingId);
+    const meta = resolveSelectionMeta(buildingId);
+
+    if (!entry) {
+        selectedBuildingId = buildingId;
+        if (meta && (options.force || attempt === 0)) {
+            notifySelection(meta);
+        }
+        if (attempt < 80 && options.retry !== false) {
             setTimeout(
                 () => selectBuildingById(buildingId, options, attempt + 1),
-                120,
+                100,
             );
         }
-        return null;
+        return meta;
     }
-    if (selectedBuildingId === buildingId && !options.force) {
-        return getBuilding(buildingId).meta;
+
+    const alreadyHighlighted =
+        selectedBuildingId === buildingId && highlightMaterials.length > 0;
+    if (alreadyHighlighted && !options.force) {
+        if (options.focusCamera) {
+            focusCameraOnBuilding(buildingId);
+        }
+        return entry.meta;
     }
 
     restoreHighlightMaterials();
@@ -65,9 +96,9 @@ export function selectBuildingById(buildingId, options = {}, attempt = 0) {
         focusCameraOnBuilding(buildingId);
     }
 
-    const meta = getBuilding(buildingId).meta;
-    if (onSelectionChange) onSelectionChange(meta);
-    return meta;
+    const resolvedMeta = getEnrichedBuildingMeta(entry.meta || meta);
+    notifySelection(resolvedMeta);
+    return resolvedMeta;
 }
 
 export function selectBuildingFromObject(object, options = {}) {

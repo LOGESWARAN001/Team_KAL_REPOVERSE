@@ -2,6 +2,8 @@
  * Maps repository files to the contribution-style 2D grid.
  */
 
+import { normalizeRepoPath } from "./buildingIndex.js";
+
 const SKIP_PATH_SEGMENTS = new Set([
     "node_modules",
     ".git",
@@ -152,19 +154,20 @@ function placeBlock(
                 continue;
             }
             const file = files[fileIndex];
+            const filePath = normalizeRepoPath(file.path);
             const lines = file.lines ?? estimateLinesFromSize(file.size);
             const height = metricToBuildingHeight(lines);
             const buildingId = `b-${fileId}`;
             grid[y][x] = fileId;
             heights[y][x] = height;
-            buildingIdByPath.set(file.path, buildingId);
+            buildingIdByPath.set(filePath, buildingId);
             meta[y][x] = {
                 buildingId,
                 fileName: file.name,
-                filePath: file.path,
+                filePath,
                 folderName: file.folder,
                 folderPath: file.folder,
-                path: file.path,
+                path: filePath,
                 lines,
                 size: file.size,
                 sizeFormatted: formatFileSize(file.size),
@@ -324,17 +327,20 @@ export function buildRepositoryGrid(treeFiles) {
         repo: null,
     };
 
-    const explorerFiles = files.map((f) => ({
-        path: f.path,
-        name: f.name,
-        folder: f.folder,
-        folderName: f.folder,
-        size: f.size,
-        lines: f.lines,
-        language: f.language,
-        sizeFormatted: formatFileSize(f.size),
-        buildingId: buildingIdByPath.get(f.path) || null,
-    }));
+    const explorerFiles = files.map((f) => {
+        const path = normalizeRepoPath(f.path);
+        return {
+            path,
+            name: f.name,
+            folder: f.folder,
+            folderName: f.folder,
+            size: f.size,
+            lines: f.lines,
+            language: f.language,
+            sizeFormatted: formatFileSize(f.size),
+            buildingId: buildingIdByPath.get(path) || null,
+        };
+    });
 
     return {
         grid: gridData.grid,

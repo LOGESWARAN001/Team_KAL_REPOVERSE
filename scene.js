@@ -20,7 +20,14 @@ import {
     ROAD_TYPES,
     TREES_SMALL,
 } from "./constants";
+import {
+    createRiverLandFill,
+    removeRiverMeshes,
+    removeShipFromAnimated,
+    shouldPlayEnvironmentAnimation,
+} from "./environmentTerrain.js";
 import { updateFireBuildings } from "./fireBuildings.js";
+import { updateIssueIndicators } from "./issueIndicators.js";
 
 // Global GLTF loader
 const loader = new GLTFLoader();
@@ -49,6 +56,7 @@ export function createScene() {
         controls.update();
         updateMixer(delta);
         updateFireBuildings(delta);
+        updateIssueIndicators(delta);
         updateCityRewards(delta);
         composer.render();
     }
@@ -335,6 +343,8 @@ function setupEnvironment(scene) {
         .then((gltf) => {
             const env = cloneGltfScene(gltf);
             env.position.set(...position);
+            removeRiverMeshes(env);
+            env.add(createRiverLandFill());
             setShadow(env, false, true);
             scene.add(env);
         })
@@ -366,13 +376,14 @@ function setupEnvironment(scene) {
         .then((gltf) => {
             const envAnimated = cloneGltfScene(gltf);
             envAnimated.position.set(...position);
+            removeShipFromAnimated(envAnimated);
             setShadow(envAnimated, true, false);
 
-            // Setup animation mixer and play all animations
             mixer = new THREE.AnimationMixer(envAnimated);
             const clips = gltf.animations;
 
-            clips.forEach(function (clip) {
+            clips.forEach((clip) => {
+                if (!shouldPlayEnvironmentAnimation(clip.name)) return;
                 mixer.clipAction(clip).play();
             });
 

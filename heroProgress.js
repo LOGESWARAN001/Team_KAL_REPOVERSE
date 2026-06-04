@@ -12,6 +12,12 @@ const defaultState = () => ({
     issuesResolved: 0,
     heroScore: 0,
     repairedBuildingIds: [],
+    challengesCompleted: 0,
+    challengeStats: {
+        game: 0,
+        math: 0,
+        quiz: 0,
+    },
 });
 
 let state = loadState();
@@ -79,4 +85,30 @@ export function awardMissionComplete(buildingId, severity = "medium") {
 
     notify();
     return { xpGain, healthGain, badgeGain: 1 };
+}
+
+/** Rewards after completing a Hero Challenge (game, math, or quiz). */
+export function awardHeroChallengeComplete(buildingId, challengeKind = null) {
+    if (buildingId && state.repairedBuildingIds.includes(buildingId)) {
+        return null;
+    }
+
+    const xpGain = 100;
+    const healthGain = 1;
+    const buildingGain = 1;
+
+    state.xp += xpGain;
+    state.cityHealth = Math.min(100, state.cityHealth + healthGain);
+    state.buildingsRepaired += buildingGain;
+    state.issuesResolved += 1;
+    state.challengesCompleted += 1;
+    state.heroScore += xpGain + healthGain * 2;
+    if (buildingId) state.repairedBuildingIds.push(buildingId);
+
+    if (challengeKind && state.challengeStats[challengeKind] != null) {
+        state.challengeStats[challengeKind] += 1;
+    }
+
+    notify();
+    return { xpGain, healthGain, buildingGain, challengeKind };
 }

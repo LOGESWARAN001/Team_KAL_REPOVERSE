@@ -9,7 +9,7 @@ import {
     isIssueBuilding,
     parseIssueFromMeta,
 } from "./issueContext.js";
-import { openMissionControl } from "./missionControl.js";
+import { openHeroChallengeModal } from "./heroChallengeModal.js";
 
 let panelEl = null;
 
@@ -133,7 +133,7 @@ export function showBuildStatusPanel(meta) {
                 repaired
                     ? `<p class="build-status-repaired-note">🎉 This building was saved by a City Hero.</p>`
                     : `<button type="button" class="build-status-hero-btn" id="becomeCityHeroBtn">🦸 Become City Hero</button>
-               <p class="build-status-hero-hint">Complete an AI mission to repair this building and boost city health.</p>`
+               <p class="build-status-hero-hint">Complete a quick hero challenge to repair this building and boost city health.</p>`
             }
         </div>
     `;
@@ -147,7 +147,7 @@ export function showBuildStatusPanel(meta) {
     panelEl
         .querySelector("#becomeCityHeroBtn")
         ?.addEventListener("click", () => {
-            openMissionControl(meta);
+            openHeroChallengeModal(meta);
         });
 }
 
