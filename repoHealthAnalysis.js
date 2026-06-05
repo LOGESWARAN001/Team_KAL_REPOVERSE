@@ -254,7 +254,8 @@ function buildHealthPayload(path, ghIssues, heuristicIssues) {
         severityLabel = maxSeverity(severityLabel, issue.severity || "minor");
     }
 
-    const primaryIssue = combined[0];
+    const primaryIssue =
+        combined.find((issue) => issue.type === "syntax") || combined[0];
     const issueCount = combined.length;
     const healthScore = Math.max(0, 100 - issueCount * 12 - rankSeverity(severityLabel) * 10);
 
@@ -295,7 +296,7 @@ export function metaHasSyntaxIssue(meta) {
 }
 
 export function shouldSpawnFireForMeta(meta) {
-    if (!meta || meta.repaired) return false;
+    if (!meta || meta.repaired || meta.missionComplete) return false;
     return metaHasSyntaxIssue(meta);
 }
 

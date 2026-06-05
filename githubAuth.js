@@ -3,6 +3,7 @@
  */
 
 const STORAGE_KEY = "github_city_token";
+const USER_STORAGE_KEY = "github_city_user";
 
 export function getGithubToken() {
     const fromEnv = import.meta.env.VITE_GITHUB_TOKEN;
@@ -31,4 +32,30 @@ export function setGithubToken(token) {
 
 export function hasGithubToken() {
     return Boolean(getGithubToken());
+}
+
+export function storeGitHubUser(user) {
+    try {
+        if (user) {
+            sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+        } else {
+            sessionStorage.removeItem(USER_STORAGE_KEY);
+        }
+    } catch {
+        /* private browsing */
+    }
+}
+
+export function getStoredGitHubUser() {
+    try {
+        const raw = sessionStorage.getItem(USER_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+export function clearGithubSession() {
+    setGithubToken("");
+    storeGitHubUser(null);
 }

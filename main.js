@@ -10,6 +10,7 @@ import {
 import { clearAssetLoaderCache } from "./assetLoader.js";
 import {
     buildBuildingIndex,
+    getEnrichedBuildingMeta,
     normalizeRepoPath,
     resolveBuildingIdByPath,
     resolveFileForBuilding,
@@ -54,7 +55,11 @@ import {
     spawnFireBuildings,
 } from "./fireBuildings.js";
 import { setGithubToken } from "./githubAuth.js";
-import { resetHeroProgress } from "./heroProgress.js";
+import { clearBranchFixRegistry } from "./branchFixRegistry.js";
+import {
+    reconcileHeroSessionWithScan,
+    resetHeroProgress,
+} from "./heroProgress.js";
 import {
     clearIssueIndicators,
     initIssueIndicators,
@@ -70,7 +75,10 @@ import {
     setLoaderStep,
     showLandingLoader,
 } from "./landingLoader.js";
-import { initHeroChallengeModal } from "./heroChallengeModal.js";
+import {
+    initHeroChallengeModal,
+    setHeroChallengeRepoContext,
+} from "./heroChallengeModal.js";
 import { initMissionControl } from "./missionControl.js";
 import {
     applyHealthToCity,
@@ -139,16 +147,8 @@ initHeroChallengeModal({ onComplete: onHeroRepairComplete });
 function syncExplorerToBuilding(meta) {
     if (!meta?.buildingId) return;
     const path = normalizeRepoPath(meta.filePath || meta.path);
-    const file = resolveFileForBuilding(
-        repositoryExplorer.files,
-        meta.buildingId,
-        path,
-    );
-    const displayMeta = file
-        ? { ...meta, ...file, fileName: file.name || meta.fileName }
-        : meta;
-    repositoryExplorer.showFileDetails(displayMeta);
-    repositoryExplorer.selectBuildingById(meta.buildingId, path || file?.path);
+    repositoryExplorer.showFileDetails(meta);
+    repositoryExplorer.selectBuildingById(meta.buildingId, path);
     if (!repositoryExplorer.panel.classList.contains("open")) {
         repositoryExplorer.openPanel();
     }
@@ -156,13 +156,48 @@ function syncExplorerToBuilding(meta) {
 
 function resolvePanelMeta(meta) {
     if (!meta?.buildingId) return meta;
-    const path = normalizeRepoPath(meta.filePath || meta.path);
+
+    const enriched = getEnrichedBuildingMeta(meta);
+    const path = normalizeRepoPath(enriched.filePath || enriched.path);
     const file = resolveFileForBuilding(
         repositoryExplorer.files,
-        meta.buildingId,
+        enriched.buildingId,
         path,
     );
-    return file ? { ...meta, ...file, fileName: file.name || meta.fileName } : meta;
+    if (!file) return enriched;
+
+    const merged = {
+        ...enriched,
+        fileName: file.name || enriched.fileName,
+        lines: file.lines ?? enriched.lines,
+        sizeFormatted: file.sizeFormatted ?? enriched.sizeFormatted,
+        language: file.language ?? enriched.language,
+    };
+
+    if (!enriched.repaired && !enriched.missionComplete) {
+        if (file.hasBug || file.issues?.length) {
+            merged.hasBug = Boolean(file.hasBug || merged.hasBug);
+            merged.issues = file.issues?.length ? file.issues : merged.issues;
+            merged.primaryIssue =
+                file.issues?.find((i) => i.type === "syntax") ||
+                file.primaryIssue ||
+                merged.primaryIssue;
+            merged.issueCount = Math.max(
+                file.issueCount || 0,
+                merged.issueCount || 0,
+                merged.issues?.length || 0,
+            );
+            merged.severityLabel =
+                file.severityLabel || merged.severityLabel;
+        }
+        if (file.buildFailed && file.buildFailure) {
+            merged.buildFailed = true;
+            merged.buildFailure = file.buildFailure;
+            merged.fireSeverity = file.fireSeverity || merged.fireSeverity;
+        }
+    }
+
+    return merged;
 }
 
 setOnSelectionChange((meta) => {
@@ -237,6 +272,7 @@ function returnToLanding() {
     hideBuildStatusPanel();
     clearCityRewards();
     resetHeroProgress();
+    clearBranchFixRegistry();
     clearFireBuildings();
     clearBuildingSelection();
     clearFireBuildings();
@@ -279,6 +315,7 @@ renderer.domElement.addEventListener("pointerdown", onCanvasPointerDown);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function generateCityFromRepo(repoInputValue) {
+    clearRepoCache();
     errorMessage.style.display = "none";
     showLandingLoader();
     setLoaderStep(0);
@@ -352,6 +389,7 @@ async function generateCityFromRepo(repoInputValue) {
     );
 
     buildBuildingIndex(healthExplorerFiles, healthMetaGrid);
+    reconcileHeroSessionWithScan(healthExplorerFiles);
 
     if (isCityDebugEnabled()) {
         for (const file of healthExplorerFiles) {
@@ -360,6 +398,12 @@ async function generateCityFromRepo(repoInputValue) {
     }
 
     currentRepoName = repoResult.fullName;
+    setHeroChallengeRepoContext({
+        owner: stats.owner,
+        repo: stats.repo,
+        fullName: repoResult.fullName,
+        defaultBranch: repoResult.defaultBranch || "main",
+    });
 
     setLoaderStep(4);
     await delay(450);

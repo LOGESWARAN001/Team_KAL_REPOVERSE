@@ -61,8 +61,38 @@ export function resetHeroProgress() {
     notify();
 }
 
-export function isBuildingRepairedInProgress(buildingId) {
+/**
+ * Drop stale session repairs for buildings that still have scan-time issues.
+ * @param {Array<{ buildingId?: string, hasBug?: boolean, issues?: object[] }>} explorerFiles
+ */
+export function reconcileHeroSessionWithScan(explorerFiles = []) {
+    if (!state.repairedBuildingIds.length) return;
+
+    const issueBuildingIds = new Set();
+    for (const file of explorerFiles) {
+        if (!file?.buildingId) continue;
+        if (file.hasBug || file.issues?.length) {
+            issueBuildingIds.add(file.buildingId);
+        }
+    }
+
+    const before = state.repairedBuildingIds.length;
+    state.repairedBuildingIds = state.repairedBuildingIds.filter(
+        (id) => !issueBuildingIds.has(id),
+    );
+
+    if (state.repairedBuildingIds.length !== before) {
+        notify();
+    }
+}
+
+export function isBuildingRepairedInSession(buildingId) {
     return state.repairedBuildingIds.includes(buildingId);
+}
+
+/** @deprecated Use isBuildingRepairedInSession */
+export function isBuildingRepairedInProgress(buildingId) {
+    return isBuildingRepairedInSession(buildingId);
 }
 
 export function awardMissionComplete(buildingId, severity = "medium") {

@@ -3,9 +3,9 @@
  */
 
 import { generateBuildFixSuggestion } from "./ciAnalysis.js";
-import { isBuildingRepairedInProgress } from "./heroProgress.js";
 import {
     isBuildingRepaired,
+    isBuildingVisuallyRepaired,
     isIssueBuilding,
     parseIssueFromMeta,
 } from "./issueContext.js";
@@ -29,9 +29,7 @@ export function showBuildStatusPanel(meta) {
     const issue = parseIssueFromMeta(meta);
     if (!issue) return;
 
-    const repaired =
-        isBuildingRepaired(meta) ||
-        isBuildingRepairedInProgress(meta.buildingId);
+    const repaired = isBuildingVisuallyRepaired(meta);
     const fix =
         issue.suggestedFix ||
         (meta.buildFailure

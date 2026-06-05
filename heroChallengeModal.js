@@ -2,22 +2,31 @@
  * Hero Challenge Modal — choose and complete a challenge before repairing a building.
  */
 
+import { markBuildingRepairedInIndex } from "./buildingIndex.js";
 import { markBuildingRepaired } from "./buildingRegistry.js";
 import { celebrateBuildingRepair } from "./cityRewards.js";
 import { repairFireBuilding } from "./fireBuildings.js";
+import { startAiRemediationFlow } from "./heroAiRemediation.js";
 import { getChallengeTypeById, HERO_CHALLENGE_TYPES } from "./heroChallenges/challengeTypes.js";
+import { awardHeroChallengeComplete } from "./heroProgress.js";
 import {
-    awardHeroChallengeComplete,
-    isBuildingRepairedInProgress,
-} from "./heroProgress.js";
-import { isBuildingRepaired, parseIssueFromMeta } from "./issueContext.js";
+    isBuildingRepaired,
+    isBuildingVisuallyRepaired,
+    parseIssueFromMeta,
+} from "./issueContext.js";
+import { metaHasSyntaxIssue } from "./repoHealthAnalysis.js";
 
 let modalEl = null;
 let currentMeta = null;
-let currentIssue = null;
 let challengeCleanup = null;
 let activeChallengeKind = null;
 let onChallengeComplete = null;
+/** @type {{ owner: string, repo: string, fullName: string, defaultBranch: string } | null} */
+let repoContext = null;
+
+export function setHeroChallengeRepoContext(ctx) {
+    repoContext = ctx;
+}
 
 export function initHeroChallengeModal(options = {}) {
     modalEl = document.getElementById("heroChallengeModal");
@@ -35,12 +44,8 @@ export function openHeroChallengeModal(meta) {
     if (!issue) return;
 
     currentMeta = meta;
-    currentIssue = issue;
 
-    if (
-        isBuildingRepaired(meta) ||
-        isBuildingRepairedInProgress(meta.buildingId)
-    ) {
+    if (isBuildingVisuallyRepaired(meta)) {
         renderAlreadyRepaired(issue);
         modalEl.classList.remove("hidden");
         return;
@@ -54,7 +59,6 @@ export function closeHeroChallengeModal() {
     destroyActiveChallenge();
     modalEl?.classList.add("hidden");
     currentMeta = null;
-    currentIssue = null;
 }
 
 function destroyActiveChallenge() {
@@ -144,7 +148,7 @@ function renderChallengePhase(issue, type) {
     if (!mount) return;
 
     challengeCleanup = type.create(mount, {
-        onSuccess: () => completeHeroRepair(issue),
+        onSuccess: () => beginAiRemediationPhase(issue),
         onFail: () => {},
     });
 
@@ -153,7 +157,28 @@ function renderChallengePhase(issue, type) {
     });
 }
 
-function completeHeroRepair(issue) {
+function beginAiRemediationPhase(issue) {
+    if (!currentMeta || !modalEl) return;
+
+    destroyActiveChallenge();
+
+    const ctx = repoContext || {
+        owner: "unknown",
+        repo: "unknown",
+        fullName: "unknown/unknown",
+        defaultBranch: "main",
+    };
+
+    startAiRemediationFlow(modalEl, {
+        issue,
+        meta: currentMeta,
+        repoContext: ctx,
+        onFinalizeRepair: (fixResult) => finalizeBuildingRepair(issue, fixResult),
+        onCancel: () => renderChoosePhase(issue),
+    });
+}
+
+function finalizeBuildingRepair(issue, fixResult = null) {
     if (!currentMeta) return;
 
     renderRepairingPhase();
@@ -164,14 +189,15 @@ function completeHeroRepair(issue) {
             activeChallengeKind,
         );
 
-        if (issue.category === "fire") {
+        if (issue.category === "fire" || metaHasSyntaxIssue(currentMeta)) {
             repairFireBuilding(currentMeta.buildingId);
         }
 
         markBuildingRepaired(currentMeta.buildingId);
+        markBuildingRepairedInIndex(currentMeta.buildingId);
         celebrateBuildingRepair(currentMeta.buildingId);
 
-        renderSuccessPhase(rewards);
+        renderSuccessPhase(rewards, fixResult);
 
         if (onChallengeComplete) {
             onChallengeComplete(
@@ -197,7 +223,7 @@ function renderRepairingPhase() {
     `;
 }
 
-function renderSuccessPhase(rewards) {
+function renderSuccessPhase(rewards, fixResult = null) {
     const panel = modalEl.querySelector(".hero-challenge-panel");
     if (!panel) {
         modalEl.innerHTML = `
@@ -211,16 +237,33 @@ function renderSuccessPhase(rewards) {
         <div class="hero-challenge-success">
             <div class="hero-challenge-success-icon">✓</div>
             <h2 class="hero-challenge-success-title">Issue Resolved!</h2>
-            <p class="hero-challenge-success-hero">Thank you, City Hero!</p>
-            <p class="hero-challenge-success-sub">Fire cleared · indicators removed · building health restored</p>
+            <p class="hero-challenge-success-sub">✨ Building Repaired · 🏢 City Health Improved · 💚 Health Restored</p>
+            ${
+                fixResult?.github?.prUrl
+                    ? `<p class="hero-challenge-success-github"><a href="${escapeHtml(fixResult.github.prUrl)}" target="_blank" rel="noopener">View Pull Request</a></p>`
+                    : fixResult?.github?.commitUrl
+                    ? `<p class="hero-challenge-success-github"><a href="${escapeHtml(fixResult.github.commitUrl)}" target="_blank" rel="noopener">View Commit</a></p>`
+                    : ""
+            }
             <div class="hero-challenge-rewards">
                 <span>+${rewards?.xpGain ?? 100} Hero XP</span>
                 <span>+${rewards?.buildingGain ?? 1} Building Saved</span>
+                <span>+1 Repository Issue Resolved</span>
                 <span>+${rewards?.healthGain ?? 1} City Health</span>
             </div>
+            <p class="hero-challenge-success-hero">🎉 Thank You, City Hero!</p>
+            ${
+                fixResult?.github
+                    ? `<button type="button" class="hero-challenge-reload-btn" id="heroChallengeReloadCity">Reload City</button>`
+                    : ""
+            }
             <button type="button" class="hero-challenge-done-btn" data-close-hero-challenge="1">Return to City</button>
         </div>
     `;
+
+    target
+        .querySelector("#heroChallengeReloadCity")
+        ?.addEventListener("click", () => window.location.reload());
 
     setTimeout(() => closeHeroChallengeModal(), 6000);
 }

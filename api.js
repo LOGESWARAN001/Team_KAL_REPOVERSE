@@ -57,9 +57,19 @@ function getGithubHeaders() {
     return headers;
 }
 
-export async function githubFetch(path) {
+export async function githubFetch(path, options = {}) {
+    const headers = {
+        ...getGithubHeaders(),
+        ...(options.headers || {}),
+    };
+    if (options.body && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
+
     const response = await fetch(`${GITHUB_API}${path}`, {
-        headers: getGithubHeaders(),
+        method: options.method || "GET",
+        headers,
+        body: options.body,
     });
 
     let body = null;

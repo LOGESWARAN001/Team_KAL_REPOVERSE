@@ -2,14 +2,16 @@
  * Mission Control — AI challenge modal and repair flow.
  */
 
+import { markBuildingRepairedInIndex } from "./buildingIndex.js";
 import { markBuildingRepaired } from "./buildingRegistry.js";
 import { celebrateBuildingRepair } from "./cityRewards.js";
 import { repairFireBuilding } from "./fireBuildings.js";
+import { awardMissionComplete } from "./heroProgress.js";
 import {
-    awardMissionComplete,
-    isBuildingRepairedInProgress,
-} from "./heroProgress.js";
-import { isBuildingRepaired, parseIssueFromMeta } from "./issueContext.js";
+    isBuildingVisuallyRepaired,
+    parseIssueFromMeta,
+} from "./issueContext.js";
+import { metaHasSyntaxIssue } from "./repoHealthAnalysis.js";
 import {
     buildAiRecommendation,
     createMissionChallenge,
@@ -35,10 +37,7 @@ export function openMissionControl(meta) {
     const issue = parseIssueFromMeta(meta);
     if (!issue) return;
 
-    if (
-        isBuildingRepaired(meta) ||
-        isBuildingRepairedInProgress(meta.buildingId)
-    ) {
+    if (isBuildingVisuallyRepaired(meta)) {
         renderAlreadyRepaired(issue);
         modalEl.classList.remove("hidden");
         return;
@@ -194,11 +193,12 @@ function completeMission(issue) {
         issue.severity,
     );
 
-    if (issue.category === "fire") {
+    if (issue.category === "fire" || metaHasSyntaxIssue(currentMeta)) {
         repairFireBuilding(currentMeta.buildingId);
     }
 
     markBuildingRepaired(currentMeta.buildingId);
+    markBuildingRepairedInIndex(currentMeta.buildingId);
     celebrateBuildingRepair(currentMeta.buildingId);
 
     renderSuccessPhase(rewards);

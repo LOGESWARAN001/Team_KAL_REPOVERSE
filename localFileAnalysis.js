@@ -309,6 +309,143 @@ function validateHtmlStructure(content) {
     return issues;
 }
 
+const HTML_TAG_PATTERN =
+    /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\/?[a-zA-Z][^>]*>/g;
+
+/**
+ * Walk HTML tags and return the first structural problem (mirrors validateHtmlStructure).
+ */
+function scanHtmlStructure(content) {
+    const stack = [];
+    const pattern = new RegExp(HTML_TAG_PATTERN.source, "g");
+    let match;
+
+    while ((match = pattern.exec(content)) !== null) {
+        const raw = match[0];
+        if (raw.startsWith("<!--") || raw.startsWith("<![CDATA")) continue;
+        if (/^<!/.test(raw)) continue;
+
+        const name = extractTagName(raw);
+        if (!name) continue;
+
+        const closing = /^<\//.test(raw);
+        const selfClose = isSelfClosing(raw) || VOID_ELEMENTS.has(name);
+
+        if (closing) {
+            const top = stack[stack.length - 1];
+            if (!top) {
+                return {
+                    problem: "unexpected-close",
+                    pos: match.index,
+                    raw,
+                    name,
+                };
+            }
+            if (top !== name) {
+                return {
+                    problem: "mismatch",
+                    pos: match.index,
+                    raw,
+                    expected: top,
+                    found: name,
+                };
+            }
+            stack.pop();
+        } else if (!selfClose) {
+            stack.push(name);
+        }
+    }
+
+    if (stack.length) {
+        return { problem: "unclosed", stack: [...stack] };
+    }
+
+    return { problem: null };
+}
+
+function countHtmlStructureIssues(content) {
+    return validateHtmlStructure(content).length;
+}
+
+function pickBestHtmlCandidate(original, candidates) {
+    const base = countHtmlStructureIssues(original);
+    let best = null;
+    let bestCount = base;
+
+    for (const candidate of candidates) {
+        if (candidate === original) continue;
+        const count = countHtmlStructureIssues(candidate);
+        if (count < bestCount) {
+            best = candidate;
+            bestCount = count;
+        }
+    }
+
+    return best;
+}
+
+/**
+ * Iteratively repair HTML tag structure (mismatch, missing closes, unexpected closes).
+ * @returns {{ content: string, changed: boolean, passes: number }}
+ */
+export function repairHtmlStructure(content) {
+    const original = content;
+    let fixed = content;
+    let passes = 0;
+
+    for (let i = 0; i < 12; i++) {
+        const scan = scanHtmlStructure(fixed);
+        if (!scan.problem) break;
+
+        let candidate = null;
+
+        if (scan.problem === "mismatch") {
+            const insert = `</${scan.expected}>`;
+            const insertFix =
+                fixed.slice(0, scan.pos) +
+                insert +
+                fixed.slice(scan.pos);
+            const replaceFix =
+                fixed.slice(0, scan.pos) +
+                insert +
+                fixed.slice(scan.pos + scan.raw.length);
+            const removeFix =
+                fixed.slice(0, scan.pos) +
+                fixed.slice(scan.pos + scan.raw.length);
+            candidate = pickBestHtmlCandidate(fixed, [
+                insertFix,
+                replaceFix,
+                removeFix,
+            ]);
+        } else if (scan.problem === "unexpected-close") {
+            const removeFix =
+                fixed.slice(0, scan.pos) +
+                fixed.slice(scan.pos + scan.raw.length);
+            candidate = pickBestHtmlCandidate(fixed, [removeFix]);
+        } else if (scan.problem === "unclosed" && scan.stack?.length) {
+            const suffix = scan.stack
+                .slice()
+                .reverse()
+                .map((tag) => `</${tag}>`)
+                .join("");
+            candidate = `${fixed.trimEnd()}${suffix}`;
+            if (countHtmlStructureIssues(candidate) >= countHtmlStructureIssues(fixed)) {
+                candidate = null;
+            }
+        }
+
+        if (!candidate || candidate === fixed) break;
+        fixed = candidate;
+        passes++;
+    }
+
+    return {
+        content: fixed,
+        changed: fixed !== original,
+        passes,
+    };
+}
+
 function validateInlineScriptsAndStyles(content) {
     const issues = [];
     const scriptPattern = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;

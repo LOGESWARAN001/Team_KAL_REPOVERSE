@@ -2,44 +2,24 @@
  * Fetches repository file contents and runs local syntax analysis.
  */
 
-import { githubFetch } from "./api.js";
+import {
+    clearBranchFix,
+    getBranchFixForPath,
+} from "./branchFixRegistry.js";
 import { normalizeRepoPath } from "./buildingIndex.js";
 import { logScanPipeline, logSyntaxScanAudit } from "./cityDiagnostics.js";
 import {
     analyzeFileContent,
     isAnalyzableFilePath,
 } from "./localFileAnalysis.js";
+import { fetchRepoFileContent } from "./repoFileContent.js";
 
 const MAX_SCAN_FILES = 150;
-const MAX_FILE_BYTES = 120_000;
 const FETCH_CONCURRENCY = 8;
 
-function decodeGitHubContent(encoded) {
-    const binary = atob((encoded || "").replace(/\n/g, ""));
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return new TextDecoder("utf-8").decode(bytes);
-}
-
 async function fetchFileContent(owner, repo, filePath, ref) {
-    const encodedPath = filePath
-        .split("/")
-        .map((seg) => encodeURIComponent(seg))
-        .join("/");
-    const data = await githubFetch(
-        `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
-    );
-    if (!data || data.type !== "file") return null;
-    if ((data.size || 0) > MAX_FILE_BYTES) return null;
-    if (data.encoding === "base64" && data.content) {
-        return decodeGitHubContent(data.content);
-    }
-    if (typeof data.content === "string") {
-        return data.content;
-    }
-    return null;
+    const data = await fetchRepoFileContent(owner, repo, filePath, ref);
+    return data?.content ?? null;
 }
 
 async function mapWithConcurrency(items, limit, fn) {
@@ -117,8 +97,42 @@ export async function scanRepositorySyntax(
         if (content == null) return;
         analyzed++;
 
-        const { fileType, issues } = analyzeFileContent(path, content);
-        if (!issues.length) {
+        let { fileType, issues } = analyzeFileContent(path, content);
+
+        if (issues.length > 0) {
+            const fixBranch = getBranchFixForPath(path);
+            if (fixBranch && fixBranch !== defaultBranch) {
+                try {
+                    const branchContent = await fetchFileContent(
+                        owner,
+                        repo,
+                        path,
+                        fixBranch,
+                    );
+                    if (branchContent != null) {
+                        const branchAnalysis = analyzeFileContent(
+                            path,
+                            branchContent,
+                        );
+                        if (!branchAnalysis.issues.length) {
+                            logSyntaxScanAudit({
+                                filePath: path,
+                                fileType: branchAnalysis.fileType,
+                                issuesFound: 0,
+                                severity: "none",
+                                buildingId: file.buildingId,
+                                fireActive: false,
+                                resolvedOnBranch: fixBranch,
+                            });
+                            return;
+                        }
+                    }
+                } catch {
+                    /* fall through to default-branch issues */
+                }
+            }
+        } else {
+            clearBranchFix(path);
             logSyntaxScanAudit({
                 filePath: path,
                 fileType,

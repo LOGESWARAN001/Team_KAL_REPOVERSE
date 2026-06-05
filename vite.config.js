@@ -31,6 +31,20 @@ export default defineConfig(({ mode }) => {
                             env.VITE_GITHUB_TOKEN ||
                             "";
 
+                        const readBody = () =>
+                            new Promise((resolve, reject) => {
+                                const chunks = [];
+                                req.on("data", (chunk) => chunks.push(chunk));
+                                req.on("end", () =>
+                                    resolve(
+                                        chunks.length
+                                            ? Buffer.concat(chunks).toString()
+                                            : undefined,
+                                    ),
+                                );
+                                req.on("error", reject);
+                            });
+
                         try {
                             const headers = {
                                 Accept: "application/vnd.github+json",
@@ -40,18 +54,32 @@ export default defineConfig(({ mode }) => {
                             if (token) {
                                 headers.Authorization = `Bearer ${token}`;
                             }
+                            if (req.headers["content-type"]) {
+                                headers["Content-Type"] =
+                                    req.headers["content-type"];
+                            }
 
+                            const requestBody = await readBody();
                             const response = await fetch(
                                 `https://api.github.com${apiPath}`,
-                                { headers },
+                                {
+                                    method: req.method || "GET",
+                                    headers,
+                                    body:
+                                        requestBody &&
+                                        req.method &&
+                                        req.method !== "GET"
+                                            ? requestBody
+                                            : undefined,
+                                },
                             );
-                            const body = await response.text();
+                            const responseBody = await response.text();
                             res.statusCode = response.status;
                             res.setHeader(
                                 "Content-Type",
                                 "application/json; charset=utf-8",
                             );
-                            res.end(body);
+                            res.end(responseBody);
                         } catch {
                             res.statusCode = 502;
                             res.setHeader(

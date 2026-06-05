@@ -95,11 +95,58 @@ function pickHigherSeverity(a, b) {
     return rankSeverity(a) >= rankSeverity(b) ? a : b;
 }
 
+/** Clear scan-time issue fields after a hero repair (registry or session). */
+export function markBuildingRepairedInIndex(buildingId) {
+    const meta = buildingIdToMeta.get(buildingId);
+    if (!meta) return;
+    buildingIdToMeta.set(buildingId, {
+        ...meta,
+        repaired: true,
+        missionComplete: true,
+        hasBug: false,
+        buildFailed: false,
+        issues: [],
+        primaryIssue: null,
+        issueCount: 0,
+    });
+}
+
+function isMetaRepaired(meta) {
+    return Boolean(meta?.repaired || meta?.missionComplete);
+}
+
+function buildRepairedMeta(meta, indexed) {
+    const filePath = normalizeRepoPath(
+        indexed?.filePath ||
+            indexed?.path ||
+            meta.filePath ||
+            meta.path,
+    );
+    return {
+        ...indexed,
+        ...meta,
+        buildingId: meta.buildingId,
+        repaired: true,
+        missionComplete: true,
+        hasBug: false,
+        buildFailed: false,
+        issues: [],
+        primaryIssue: null,
+        issueCount: 0,
+        filePath,
+        path: filePath,
+    };
+}
+
 /** Merge indexed issue/health fields onto mesh registration metadata. */
 export function getEnrichedBuildingMeta(meta) {
     if (!meta?.buildingId) return meta;
     const indexed = getBuildingMetaById(meta.buildingId);
     if (!indexed) return meta;
+
+    if (isMetaRepaired(meta)) {
+        return buildRepairedMeta(meta, indexed);
+    }
 
     const issues =
         (indexed.issues?.length ? indexed.issues : null) ||

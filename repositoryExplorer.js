@@ -8,6 +8,13 @@ import {
     resolveFileByPath,
     resolveFileForBuilding,
 } from "./buildingIndex.js";
+import { openHeroChallengeModal } from "./heroChallengeModal.js";
+import {
+    isBuildingVisuallyRepaired,
+    parseIssueFromMeta,
+    pickPrimaryIssue,
+} from "./issueContext.js";
+import { metaHasSyntaxIssue } from "./repoHealthAnalysis.js";
 import {
     fileIconHtml,
     folderChevronHtml,
@@ -116,15 +123,31 @@ export class RepositoryExplorer {
                 </div>`;
         }
 
-        if (meta.hasBug && meta.primaryIssue) {
-            const p = meta.primaryIssue;
+        const issue = parseIssueFromMeta(meta);
+        const primary = pickPrimaryIssue(meta);
+
+        if (metaHasSyntaxIssue(meta)) {
+            buildHtml += `
+                <div class="repo-explorer-details-section repo-explorer-details-section--syntax">
+                    <p class="repo-explorer-details-subtitle">🔥 Syntax error — fire on building</p>
+                    <div class="repo-explorer-details-row"><span>Issue</span><span>${escapeHtml(primary?.title || "Syntax error detected")}</span></div>
+                    <div class="repo-explorer-details-row"><span>Severity</span><span class="repo-explorer-fire-severity repo-explorer-fire-severity--${meta.severityLabel || primary?.severity || "critical"}">${escapeHtml(meta.severityLabel || primary?.severity || "critical")}</span></div>
+                </div>`;
+        } else if (meta.hasBug && primary) {
             const issueCount = meta.issueCount || 1;
             buildHtml += `
                 <div class="repo-explorer-details-section repo-explorer-details-section--issue">
                     <p class="repo-explorer-details-subtitle">⚠️ ${issueCount} issue${issueCount > 1 ? "s" : ""} detected</p>
-                    <div class="repo-explorer-details-row"><span>Severity</span><span class="repo-explorer-fire-severity repo-explorer-fire-severity--${meta.severityLabel || p.severity || "medium"}">${escapeHtml(meta.severityLabel || p.severity || "medium")}</span></div>
+                    <div class="repo-explorer-details-row"><span>Severity</span><span class="repo-explorer-fire-severity repo-explorer-fire-severity--${meta.severityLabel || primary.severity || "medium"}">${escapeHtml(meta.severityLabel || primary.severity || "medium")}</span></div>
                     <div class="repo-explorer-details-row"><span>Health</span><span>${meta.healthScore ?? "—"}</span></div>
                 </div>`;
+        }
+
+        let heroHtml = "";
+        if (issue && !isBuildingVisuallyRepaired(meta)) {
+            heroHtml = `
+                <button type="button" class="repo-explorer-details-hero-btn" id="repoExplorerHeroBtn">🦸 Become City Hero</button>
+                <p class="repo-explorer-details-hero-hint">Complete a hero challenge to scan, review, and repair this file.</p>`;
         }
 
         this.detailsEl.innerHTML = `
@@ -140,7 +163,12 @@ export class RepositoryExplorer {
                 language,
             )}</span></div>
             ${buildHtml}
+            ${heroHtml}
         `;
+
+        this.detailsEl
+            .querySelector("#repoExplorerHeroBtn")
+            ?.addEventListener("click", () => openHeroChallengeModal(meta));
     }
 
     clearFileDetails() {

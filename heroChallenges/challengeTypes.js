@@ -2,9 +2,9 @@
  * Hero challenge type registry — extensible for future challenge kinds.
  */
 
-import { createFruitSliceChallenge } from "./fruitSliceChallenge.js";
 import { createMathChallenge } from "./mathChallenge.js";
 import { createQuizChallenge } from "./quizChallenge.js";
+import { createSnakeChallenge } from "./snakeChallenge.js";
 
 /** @typedef {'game'|'math'|'quiz'} HeroChallengeKind */
 
@@ -28,8 +28,8 @@ export const HERO_CHALLENGE_TYPES = [
         id: "game",
         icon: "🎮",
         title: "Play a Game",
-        description: "Fruit Slice — score 50+ in 15 seconds",
-        create: createFruitSliceChallenge,
+        description: "Snake Challenge — fix 5 bugs to win",
+        create: createSnakeChallenge,
     },
     {
         id: "math",

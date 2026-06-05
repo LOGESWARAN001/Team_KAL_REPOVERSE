@@ -3,6 +3,19 @@
  */
 
 import { generateBuildFixSuggestion } from "./ciAnalysis.js";
+import { isBuildingRepairedInSession } from "./heroProgress.js";
+import { metaHasSyntaxIssue } from "./repoHealthAnalysis.js";
+
+/** Prefer syntax issues for display when a file has multiple issue types. */
+export function pickPrimaryIssue(meta) {
+    const issues = meta?.issues || [];
+    return (
+        issues.find((issue) => issue.type === "syntax") ||
+        meta?.primaryIssue ||
+        issues[0] ||
+        null
+    );
+}
 
 export function parseIssueFromMeta(meta) {
     if (!meta) return null;
@@ -54,25 +67,9 @@ export function parseIssueFromMeta(meta) {
         };
     }
 
-    if (meta.hasBug && meta.primaryIssue) {
-        const p = meta.primaryIssue;
-        return {
-            category: meta.bugType || "bug",
-            issueType: p.type?.replace(/_/g, " ") || "Code Issue",
-            icon: "🐞",
-            severity: meta.severityLabel?.toLowerCase() || "medium",
-            filePath: meta.filePath || meta.path || "—",
-            fileName: meta.fileName || "—",
-            title: p.title || "Code quality issue detected",
-            description: p.title || "Issue detected in this file",
-            detail: p,
-            suggestedFix: null,
-            url: p.url,
-        };
-    }
-
-    if (meta.issues?.length > 0) {
-        const p = meta.primaryIssue || meta.issues[0];
+    if (meta.hasBug || meta.issues?.length > 0) {
+        const p = pickPrimaryIssue(meta);
+        if (!p) return null;
         const type = p.type || "issue";
         let category = "bug";
         if (type === "security") category = "security";
@@ -80,11 +77,15 @@ export function parseIssueFromMeta(meta) {
             category = "complexity";
         }
 
+        if (type === "syntax") category = "syntax";
+
         return {
             category,
             issueType: type.replace(/_/g, " "),
             icon:
-                category === "security"
+                type === "syntax"
+                    ? "⚠"
+                    : category === "security"
                     ? "🔒"
                     : category === "complexity"
                     ? "🤖"
@@ -96,7 +97,7 @@ export function parseIssueFromMeta(meta) {
             title: p.title || "Repository issue",
             description: p.title || "Issue detected",
             detail: p,
-            suggestedFix: null,
+            suggestedFix: p.title || null,
             url: p.url,
         };
     }
@@ -109,5 +110,18 @@ export function isIssueBuilding(meta) {
 }
 
 export function isBuildingRepaired(meta) {
-    return Boolean(meta?.repaired || meta?.missionComplete);
+    return Boolean(
+        meta?.repaired ||
+            meta?.missionComplete ||
+            (meta?.buildingId && isBuildingRepairedInSession(meta.buildingId)),
+    );
+}
+
+/** True only when repair is recorded and no outstanding issues remain. */
+export function isBuildingVisuallyRepaired(meta) {
+    if (!meta) return false;
+    if (metaHasSyntaxIssue(meta) || (meta.buildFailed && meta.buildFailure)) {
+        return false;
+    }
+    return isBuildingRepaired(meta);
 }
