@@ -22,12 +22,14 @@ import {
 } from "./constants";
 import {
     createRiverLandFill,
+    recolorBeachSandPromenade,
     removeRiverMeshes,
     removeShipFromAnimated,
     shouldPlayEnvironmentAnimation,
 } from "./environmentTerrain.js";
 import { updateFireBuildings } from "./fireBuildings.js";
 import { updateIssueIndicators } from "./issueIndicators.js";
+import { initThemePark, updateThemePark } from "./themePark.js";
 
 // Global GLTF loader
 const loader = new GLTFLoader();
@@ -42,6 +44,8 @@ export function createScene() {
 
     const updateMixer = setupEnvironment(scene);
 
+    initThemePark(scene);
+
     const controls = createControls(camera, renderer);
 
     const composer = setupPostProcessing(scene, camera, renderer);
@@ -55,6 +59,7 @@ export function createScene() {
         requestAnimationFrame(animate);
         controls.update();
         updateMixer(delta);
+        updateThemePark(delta);
         updateFireBuildings(delta);
         updateIssueIndicators(delta);
         updateCityRewards(delta);
@@ -344,6 +349,7 @@ function setupEnvironment(scene) {
             const env = cloneGltfScene(gltf);
             env.position.set(...position);
             removeRiverMeshes(env);
+            recolorBeachSandPromenade(env);
             env.add(createRiverLandFill());
             setShadow(env, false, true);
             scene.add(env);
