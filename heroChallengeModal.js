@@ -7,7 +7,10 @@ import { markBuildingRepaired } from "./buildingRegistry.js";
 import { celebrateBuildingRepair } from "./cityRewards.js";
 import { repairFireBuilding } from "./fireBuildings.js";
 import { startAiRemediationFlow } from "./heroAiRemediation.js";
-import { getChallengeTypeById, HERO_CHALLENGE_TYPES } from "./heroChallenges/challengeTypes.js";
+import {
+    getChallengeTypeById,
+    HERO_CHALLENGE_TYPES,
+} from "./heroChallenges/challengeTypes.js";
 import { awardHeroChallengeComplete } from "./heroProgress.js";
 import {
     isBuildingRepaired,
@@ -87,10 +90,16 @@ function renderChoosePhase(issue) {
 
     const optionsHtml = HERO_CHALLENGE_TYPES.map(
         (type) =>
-            `<button type="button" class="hero-challenge-choice-btn" data-challenge-id="${type.id}">
+            `<button type="button" class="hero-challenge-choice-btn" data-challenge-id="${
+                type.id
+            }">
                 <span class="hero-challenge-choice-icon">${type.icon}</span>
-                <span class="hero-challenge-choice-title">${escapeHtml(type.title)}</span>
-                <span class="hero-challenge-choice-desc">${escapeHtml(type.description)}</span>
+                <span class="hero-challenge-choice-title">${escapeHtml(
+                    type.title,
+                )}</span>
+                <span class="hero-challenge-choice-desc">${escapeHtml(
+                    type.description,
+                )}</span>
             </button>`,
     ).join("");
 
@@ -106,7 +115,9 @@ function renderChoosePhase(issue) {
             </header>
             <div class="hero-challenge-issue">
                 <span>${issue.icon} ${escapeHtml(issue.issueType)}</span>
-                <span class="hero-challenge-severity hero-challenge-severity--${issue.severity}">${escapeHtml(issue.severity)}</span>
+                <span class="hero-challenge-severity hero-challenge-severity--${
+                    issue.severity
+                }">${escapeHtml(issue.severity)}</span>
             </div>
             <p class="hero-challenge-intro">How would you like to help repair this building?</p>
             <p class="hero-challenge-file">${escapeHtml(issue.filePath)}</p>
@@ -114,12 +125,14 @@ function renderChoosePhase(issue) {
         </div>
     `;
 
-    modalEl.querySelector("#heroChallengeChoices")?.addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-challenge-id]");
-        if (!btn) return;
-        const type = getChallengeTypeById(btn.dataset.challengeId);
-        if (type) renderChallengePhase(issue, type);
-    });
+    modalEl
+        .querySelector("#heroChallengeChoices")
+        ?.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-challenge-id]");
+            if (!btn) return;
+            const type = getChallengeTypeById(btn.dataset.challengeId);
+            if (type) renderChallengePhase(issue, type);
+        });
 }
 
 function renderChallengePhase(issue, type) {
@@ -152,9 +165,11 @@ function renderChallengePhase(issue, type) {
         onFail: () => {},
     });
 
-    modalEl.querySelector("#heroChallengeBackBtn")?.addEventListener("click", () => {
-        renderChoosePhase(issue);
-    });
+    modalEl
+        .querySelector("#heroChallengeBackBtn")
+        ?.addEventListener("click", () => {
+            renderChoosePhase(issue);
+        });
 }
 
 function beginAiRemediationPhase(issue) {
@@ -173,7 +188,8 @@ function beginAiRemediationPhase(issue) {
         issue,
         meta: currentMeta,
         repoContext: ctx,
-        onFinalizeRepair: (fixResult) => finalizeBuildingRepair(issue, fixResult),
+        onFinalizeRepair: (fixResult) =>
+            finalizeBuildingRepair(issue, fixResult),
         onCancel: () => renderChoosePhase(issue),
     });
 }
@@ -240,9 +256,13 @@ function renderSuccessPhase(rewards, fixResult = null) {
             <p class="hero-challenge-success-sub">✨ Building Repaired · 🏢 City Health Improved · 💚 Health Restored</p>
             ${
                 fixResult?.github?.prUrl
-                    ? `<p class="hero-challenge-success-github"><a href="${escapeHtml(fixResult.github.prUrl)}" target="_blank" rel="noopener">View Pull Request</a></p>`
+                    ? `<p class="hero-challenge-success-github"><a href="${escapeHtml(
+                          fixResult.github.prUrl,
+                      )}" target="_blank" rel="noopener">View Pull Request</a></p>`
                     : fixResult?.github?.commitUrl
-                    ? `<p class="hero-challenge-success-github"><a href="${escapeHtml(fixResult.github.commitUrl)}" target="_blank" rel="noopener">View Commit</a></p>`
+                    ? `<p class="hero-challenge-success-github"><a href="${escapeHtml(
+                          fixResult.github.commitUrl,
+                      )}" target="_blank" rel="noopener">View Commit</a></p>`
                     : ""
             }
             <div class="hero-challenge-rewards">
