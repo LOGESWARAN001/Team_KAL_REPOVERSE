@@ -1,5 +1,5 @@
 /**
- * Standalone Theme Park district — isolated from GitHub City systems.
+ * Standalone Theme Park district — isolated from RepoVerse systems.
  * Visual polish only; attraction world positions are unchanged.
  */
 
@@ -221,10 +221,9 @@ function createBoardwalkSurface(parent, strip) {
         if (px > strip.maxX) break;
         const plank = new THREE.Mesh(
             new THREE.BoxGeometry(0.68, 0.045, plankSpan),
-            makeMat(
-                i % 2 === 0 ? COLORS.plankLight : COLORS.plankDark,
-                { roughness: 0.86 },
-            ),
+            makeMat(i % 2 === 0 ? COLORS.plankLight : COLORS.plankDark, {
+                roughness: 0.86,
+            }),
         );
         plank.position.set(px, y + 0.055, strip.cz);
         plank.receiveShadow = true;
@@ -266,7 +265,7 @@ function createFlowerPlanter(x, z) {
             makeMat(palette[i % palette.length]),
         );
         flower.position.set(
-            (i % 3 - 1) * 0.25,
+            ((i % 3) - 1) * 0.25,
             0.68,
             (Math.floor(i / 3) - 0.5) * 0.25,
         );
@@ -348,9 +347,7 @@ function buildFrontPromenade(parent, b) {
         if (i % 4 === 1) parent.add(createBench(x, northZ, 0));
         if (i % 4 === 2) parent.add(createFlowerPlanter(x, southZ));
         if (i % 5 === 0) {
-            parent.add(
-                createBalloon(x + 1.2, strip.cz, COLORS.coral, 2.8),
-            );
+            parent.add(createBalloon(x + 1.2, strip.cz, COLORS.coral, 2.8));
         }
         if (i % 6 === 3) parent.add(createSnackCart(x, northZ + 0.3));
         if (i % 7 === 2) parent.add(createTrashCan(x, southZ));
@@ -470,7 +467,12 @@ function createFlowerBed(x, z, w = 2, d = 1.2) {
     );
     rim.position.y = 0.02;
     g.add(rim);
-    const palette = [COLORS.pink, COLORS.sunshine, COLORS.lavender, COLORS.coral];
+    const palette = [
+        COLORS.pink,
+        COLORS.sunshine,
+        COLORS.lavender,
+        COLORS.coral,
+    ];
     for (let i = 0; i < 10; i++) {
         const flower = new THREE.Mesh(
             new THREE.SphereGeometry(0.1, 5, 5),
@@ -811,7 +813,12 @@ function createFerrisWheel(x, z) {
     hub.rotation.x = Math.PI / 2;
     wheel.add(hub);
 
-    const cabinColors = [COLORS.coral, COLORS.sky, COLORS.sunshine, COLORS.mint];
+    const cabinColors = [
+        COLORS.coral,
+        COLORS.sky,
+        COLORS.sunshine,
+        COLORS.mint,
+    ];
     for (let i = 0; i < 16; i++) {
         const angle = (i / 16) * Math.PI * 2;
         const cabin = new THREE.Group();
@@ -858,7 +865,11 @@ function createFerrisWheel(x, z) {
             new THREE.SphereGeometry(0.13, 6, 6),
             makeGlow(COLORS.light, 0.55),
         );
-        bulb.position.set(Math.cos(angle) * (R + 0.15), Math.sin(angle) * (R + 0.15), 0.2);
+        bulb.position.set(
+            Math.cos(angle) * (R + 0.15),
+            Math.sin(angle) * (R + 0.15),
+            0.2,
+        );
         wheel.add(bulb);
         animatables.push({
             type: "pulse",
@@ -1043,11 +1054,7 @@ function createSpinningRide(x, z) {
             new THREE.BoxGeometry(0.75, 0.1, 0.75),
             makeMat(COLORS.coral),
         );
-        canopy.position.set(
-            Math.sin(angle) * 3.4,
-            0.95,
-            Math.cos(angle) * 3.4,
-        );
+        canopy.position.set(Math.sin(angle) * 3.4, 0.95, Math.cos(angle) * 3.4);
         spinner.add(arm);
         spinner.add(seat);
         spinner.add(canopy);
@@ -1114,7 +1121,12 @@ function createCarousel(x, z) {
     centerPole.position.y = 1.6;
     carousel.add(centerPole);
 
-    const horseColors = [COLORS.white, COLORS.sunshine, COLORS.sky, COLORS.mint];
+    const horseColors = [
+        COLORS.white,
+        COLORS.sunshine,
+        COLORS.sky,
+        COLORS.mint,
+    ];
     for (let i = 0; i < 10; i++) {
         const angle = (i / 10) * Math.PI * 2;
         const hx = Math.cos(angle) * 2.7;
@@ -1153,7 +1165,11 @@ function createCarousel(x, z) {
                 new THREE.SphereGeometry(0.1, 5, 5),
                 makeGlow(COLORS.light, 0.5),
             );
-            bulb.position.set(Math.cos(angle) * 3.3, 2.8, Math.sin(angle) * 3.3);
+            bulb.position.set(
+                Math.cos(angle) * 3.3,
+                2.8,
+                Math.sin(angle) * 3.3,
+            );
             carousel.add(bulb);
             animatables.push({
                 type: "pulse",
@@ -1599,7 +1615,7 @@ function createSparkleCluster(count = 8) {
             }),
         );
         sparkle.position.set(
-            (i % 4 - 1.5) * 0.5,
+            ((i % 4) - 1.5) * 0.5,
             0.5 + (i % 3) * 0.6,
             (Math.floor(i / 4) - 0.5) * 0.5,
         );
@@ -1791,8 +1807,7 @@ export function updateThemePark(delta) {
                 anim.object.rotation.y += anim.speed * delta;
                 break;
             case "levelCabin":
-                anim.cabin.rotation.z =
-                    -anim.offset - anim.wheel.rotation.y;
+                anim.cabin.rotation.z = -anim.offset - anim.wheel.rotation.y;
                 break;
             case "float":
                 anim.object.position.y =
@@ -1812,8 +1827,7 @@ export function updateThemePark(delta) {
             case "fountain":
                 anim.object.children.forEach((jet, i) => {
                     const scale =
-                        0.55 +
-                        0.45 * Math.sin(t * anim.speed * 2 + i * 1.2);
+                        0.55 + 0.45 * Math.sin(t * anim.speed * 2 + i * 1.2);
                     jet.scale.y = scale;
                 });
                 break;
