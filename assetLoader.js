@@ -83,7 +83,7 @@ function logMissingAsset(missingFile, fallbackFile, context) {
             : context.category || "asset";
 
     console.warn(
-        `[GitHub City] Missing GLB "${missingFile}" (${typeLabel}, part: ${
+        `[RepoVerse] Missing GLB "${missingFile}" (${typeLabel}, part: ${
             context.part || "n/a"
         }). Using fallback "${fallbackFile}".`,
     );
@@ -130,7 +130,7 @@ export function loadGltfAsset(loader, filename, context = {}, depth = 0) {
         }
 
         console.warn(
-            `[GitHub City] Could not load "${filename}" and no fallback available.`,
+            `[RepoVerse] Could not load "${filename}" and no fallback available.`,
             error,
         );
         return Promise.reject(error);
