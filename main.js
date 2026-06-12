@@ -8,6 +8,7 @@ import {
     getRepositoryCityData,
 } from "./api";
 import { clearAssetLoaderCache } from "./assetLoader.js";
+import { scanRepoIssuesWithAzure } from "./repoIssueScan.js";
 import {
     buildBuildingIndex,
     getEnrichedBuildingMeta,
@@ -187,8 +188,7 @@ function resolvePanelMeta(meta) {
                 merged.issueCount || 0,
                 merged.issues?.length || 0,
             );
-            merged.severityLabel =
-                file.severityLabel || merged.severityLabel;
+            merged.severityLabel = file.severityLabel || merged.severityLabel;
         }
         if (file.buildFailed && file.buildFailure) {
             merged.buildFailed = true;
@@ -301,8 +301,9 @@ infoForm.onsubmit = async (e) => {
 };
 
 function applyShadowPreset() {
-    if (!shadowPreset) return;
-    changeShadowPreset(scene, shadowPreset.value);
+    // if (!shadowPreset) return;
+
+    changeShadowPreset(scene, 3);
 }
 
 if (shadowPreset) {
@@ -379,14 +380,12 @@ async function generateCityFromRepo(repoInputValue) {
         enrichedExplorerFiles,
         repoResult.defaultBranch || "main",
     );
-    const {
-        fileMetaGrid: healthMetaGrid,
-        explorerFiles: healthExplorerFiles,
-    } = applyHealthToCity(
-        enrichedMetaGrid,
-        enrichedExplorerFiles,
-        healthContext,
-    );
+    const { fileMetaGrid: healthMetaGrid, explorerFiles: healthExplorerFiles } =
+        applyHealthToCity(
+            enrichedMetaGrid,
+            enrichedExplorerFiles,
+            healthContext,
+        );
 
     buildBuildingIndex(healthExplorerFiles, healthMetaGrid);
     reconcileHeroSessionWithScan(healthExplorerFiles);
@@ -426,6 +425,39 @@ async function generateCityFromRepo(repoInputValue) {
     spawnFireBuildings(healthMetaGrid, healthExplorerFiles);
     spawnIssueIndicators(healthMetaGrid, healthExplorerFiles);
     reconcileBuildingIssueEffects(healthMetaGrid, healthExplorerFiles);
+
+    const repoContext = {
+        owner: stats.owner,
+        repo: stats.repo,
+        defaultBranch: repoResult.defaultBranch || "main",
+    };
+
+    scanRepoIssuesWithAzure(
+        repoContext,
+        healthExplorerFiles,
+        (done, total, file) => {
+            console.log(`[IssueScan] ${done}/${total}: ${file ?? "done"}`);
+        },
+    )
+        .then((scanResults) => {
+            // scanResults is a flat array of file meta objects.
+            // Wrap as a single row so buildBuildingIndex / spawn fns
+            // receive the expected fileMetaGrid shape (array of rows).
+            const azureMetaGrid = [scanResults];
+
+            // Rebuild index with AI scan results — hasBug/fireLevel now populated
+            buildBuildingIndex(healthExplorerFiles, azureMetaGrid);
+            syncRegistryMetaFromIndex();
+
+            // Re-run fire + effects with AI-enriched data
+            spawnFireBuildings(azureMetaGrid, healthExplorerFiles);
+            spawnIssueIndicators(azureMetaGrid, healthExplorerFiles);
+            reconcileBuildingIssueEffects(azureMetaGrid, healthExplorerFiles);
+        })
+        .catch((err) => {
+            console.error("[IssueScan] Azure scan failed:", err.message);
+        });
+
     for (const delayMs of [1500, 4000, 8000]) {
         setTimeout(
             () =>
