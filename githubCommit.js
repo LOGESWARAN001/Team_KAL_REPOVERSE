@@ -21,7 +21,7 @@ function toBase64(content) {
 }
 
 export function logFixCommit(stage, details = {}) {
-    console.group(`[GitHub City Fix] ${stage}`);
+    console.group(`[RepoVerse Fix] ${stage}`);
     for (const [key, value] of Object.entries(details)) {
         console.log(`${key}:`, value);
     }
@@ -59,7 +59,9 @@ export function validateFixPayload(payload) {
 
 export async function getBranchHeadSha(owner, repo, branchName) {
     const ref = await githubFetch(
-        `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branchName)}`,
+        `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(
+            branchName,
+        )}`,
     );
     return ref?.object?.sha || null;
 }
@@ -72,7 +74,9 @@ export async function getBranchHeadSha(owner, repo, branchName) {
  */
 export async function createBranch(owner, repo, branchName, baseBranch) {
     const ref = await githubFetch(
-        `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(baseBranch)}`,
+        `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(
+            baseBranch,
+        )}`,
     );
     const baseSha = ref?.object?.sha;
     if (!baseSha) {
@@ -95,7 +99,9 @@ export async function createBranch(owner, repo, branchName, baseBranch) {
     } catch (err) {
         if (err.status !== 422) throw err;
         await githubFetch(
-            `/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branchName)}`,
+            `/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(
+                branchName,
+            )}`,
             {
                 method: "PATCH",
                 body: JSON.stringify({ sha: baseSha, force: true }),
@@ -165,7 +171,9 @@ export async function commitFileChange(
     });
 
     if (!commitSha) {
-        throw new Error("GitHub did not return a commit SHA for the file update.");
+        throw new Error(
+            "GitHub did not return a commit SHA for the file update.",
+        );
     }
 
     return {
@@ -180,7 +188,9 @@ export async function compareBranches(owner, repo, baseBranch, headBranch) {
         ? headBranch
         : encodeURIComponent(headBranch);
     const comparison = await githubFetch(
-        `/repos/${owner}/${repo}/compare/${encodeURIComponent(baseBranch)}...${headRef}`,
+        `/repos/${owner}/${repo}/compare/${encodeURIComponent(
+            baseBranch,
+        )}...${headRef}`,
     );
 
     return {
@@ -189,7 +199,8 @@ export async function compareBranches(owner, repo, baseBranch, headBranch) {
         behindBy: comparison.behind_by ?? 0,
         files: comparison.files || [],
         totalCommits: comparison.total_commits ?? 0,
-        headSha: comparison.commits?.[comparison.commits.length - 1]?.sha || null,
+        headSha:
+            comparison.commits?.[comparison.commits.length - 1]?.sha || null,
     };
 }
 
@@ -330,8 +341,10 @@ export async function applyFixWorkflow({
     logFixCommit("Branch File Resolved", {
         "Target File Path": filePath,
         "Original File SHA": branchFileSha || "—",
-        "Original Content Length": branchFile?.content?.length ?? originalContent.length,
-        "Branch SHA (before commit)": (await getBranchHeadSha(owner, repo, branchName)) || baseSha,
+        "Original Content Length":
+            branchFile?.content?.length ?? originalContent.length,
+        "Branch SHA (before commit)":
+            (await getBranchHeadSha(owner, repo, branchName)) || baseSha,
     });
 
     const commit = await commitFileChange(
