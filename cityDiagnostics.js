@@ -14,7 +14,7 @@ export function isCityDebugEnabled() {
     }
 }
 
-const prefix = "[GitHub City]";
+const prefix = "[RepoVerse]";
 
 function debugLog(category, payload) {
     if (!isCityDebugEnabled()) return;
