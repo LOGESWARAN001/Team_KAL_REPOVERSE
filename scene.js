@@ -322,8 +322,8 @@ function setupLighting(scene) {
     const directionLight = new THREE.DirectionalLight(0xe9b37c);
     directionLight.position.set(-50, 50, -20);
     directionLight.castShadow = true;
-    directionLight.shadow.mapSize.x = 768;
-    directionLight.shadow.mapSize.y = 768;
+    directionLight.shadow.mapSize.x = 2048;
+    directionLight.shadow.mapSize.y = 2048;
     directionLight.shadow.camera.near = 15;
     directionLight.shadow.camera.far = 150.0;
     directionLight.shadow.camera.right = 75;
