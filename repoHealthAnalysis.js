@@ -19,7 +19,7 @@ import {
     resolvePathInSet,
 } from "./issuePathMapping.js";
 import { getFileTypeFromPath } from "./localFileAnalysis.js";
-import { scanRepositorySyntax } from "./repoIssueScan.js";
+import { scanRepoIssuesWithAzure } from "./repoIssueScan.js";
 
 const MAX_ISSUES = 40;
 
@@ -36,9 +36,7 @@ function maxSeverity(a, b) {
 function severityFromIssueLabels(labels = []) {
     const names = labels.map((l) => (l.name || "").toLowerCase());
     if (
-        names.some((n) =>
-            /critical|blocker|p0|security|vulnerability/.test(n),
-        )
+        names.some((n) => /critical|blocker|p0|security|vulnerability/.test(n))
     ) {
         return "critical";
     }
@@ -98,7 +96,10 @@ function runFileHeuristics(file) {
         });
     }
 
-    if (/config|settings|env/i.test(name) && /\.(json|ya?ml|toml)$/i.test(name)) {
+    if (
+        /config|settings|env/i.test(name) &&
+        /\.(json|ya?ml|toml)$/i.test(name)
+    ) {
         issues.push({
             type: "security",
             severity: "high",
@@ -135,8 +136,7 @@ async function fetchCodeScanningIssues(owner, repo, pathSet) {
                     ? "security"
                     : "bug",
                 severity: severityFromCodeScanning(
-                    alert.rule?.severity ||
-                        alert.rule?.security_severity_level,
+                    alert.rule?.severity || alert.rule?.security_severity_level,
                 ),
                 title:
                     alert.rule?.description ||
@@ -163,6 +163,41 @@ function mergeIssuesMaps(target, source) {
     for (const [path, list] of source.entries()) {
         target.set(path, [...(target.get(path) || []), ...list]);
     }
+}
+
+/**
+ * Converts the array returned by scanRepoIssuesWithAzure into the standard
+ * Map<normalizedPath, issue[]> shape expected by mergeIssuesMaps.
+ *
+ * Each Azure issue already carries { issueType, severity, line, rootCause,
+ * explanation, suggestedFix }. We re-key `issueType` → `type` and add a
+ * human-readable `title` so downstream consumers (buildHealthPayload, fire
+ * logic) see a consistent shape regardless of issue source.
+ */
+function convertAzureScanToIssuesMap(azureScanResults = []) {
+    const issuesByPath = new Map();
+    for (const fileMeta of azureScanResults) {
+        if (!fileMeta?.issues?.length) continue;
+        const path = normalizeRepoPath(fileMeta.filePath || fileMeta.path);
+        if (!path) continue;
+        const mapped = fileMeta.issues.map((issue) => ({
+            type: issue.issueType || "bug",
+            severity: issue.severity || "minor",
+            title:
+                issue.rootCause ||
+                issue.explanation ||
+                "Azure AI detected issue",
+            suggestedFix: issue.suggestedFix,
+            line: issue.line ?? null,
+        }));
+        issuesByPath.set(path, [...(issuesByPath.get(path) || []), ...mapped]);
+        logScanPipeline("Azure issue mapped", {
+            path,
+            issueCount: mapped.length,
+            topSeverity: mapped[0]?.severity,
+        });
+    }
+    return issuesByPath;
 }
 
 export async function fetchRepoHealthData(
@@ -195,9 +230,7 @@ export async function fetchRepoHealthData(
         for (const path of extractPathsFromText(text, pathSet)) {
             const list = issuesByPath.get(path) || [];
             list.push({
-                type: ghIssue.labels?.some((l) =>
-                    /security/i.test(l.name),
-                )
+                type: ghIssue.labels?.some((l) => /security/i.test(l.name))
                     ? "security"
                     : "bug",
                 severity,
@@ -208,20 +241,27 @@ export async function fetchRepoHealthData(
         }
     }
 
-    const scanningIssues = await fetchCodeScanningIssues(
-        owner,
-        repo,
-        pathSet,
-    );
+    const scanningIssues = await fetchCodeScanningIssues(owner, repo, pathSet);
     mergeIssuesMaps(issuesByPath, scanningIssues);
 
-    const syntaxIssues = await scanRepositorySyntax(
-        owner,
-        repo,
-        defaultBranch,
+    // Azure AI deep scan — replaces the old scanRepositorySyntax call.
+    // scanRepoIssuesWithAzure returns an array of enriched file-meta objects;
+    // convertAzureScanToIssuesMap folds them into the standard Map<path, issue[]>
+    // shape so the rest of the pipeline is unchanged.
+    const repoContext = { owner, repo, defaultBranch };
+    const azureScanResults = await scanRepoIssuesWithAzure(
+        repoContext,
         explorerFiles,
+        (scanned, total, currentFile) => {
+            logScanPipeline("Azure scan progress", {
+                scanned,
+                total,
+                currentFile,
+            });
+        },
     );
-    mergeIssuesMaps(issuesByPath, syntaxIssues);
+    const azureIssues = convertAzureScanToIssuesMap(azureScanResults);
+    mergeIssuesMaps(issuesByPath, azureIssues);
 
     const heuristicsByPath = new Map();
     for (const file of explorerFiles) {
@@ -234,7 +274,7 @@ export async function fetchRepoHealthData(
         issuesByPath,
         heuristicsByPath,
         openIssueCount: openIssues.length,
-        syntaxPathsScanned: syntaxIssues.size,
+        syntaxPathsScanned: azureIssues.size,
     };
 }
 
@@ -257,7 +297,10 @@ function buildHealthPayload(path, ghIssues, heuristicIssues) {
     const primaryIssue =
         combined.find((issue) => issue.type === "syntax") || combined[0];
     const issueCount = combined.length;
-    const healthScore = Math.max(0, 100 - issueCount * 12 - rankSeverity(severityLabel) * 10);
+    const healthScore = Math.max(
+        0,
+        100 - issueCount * 12 - rankSeverity(severityLabel) * 10,
+    );
 
     logIssueDetected({
         filePath: path,
@@ -288,16 +331,39 @@ function buildHealthPayload(path, ghIssues, heuristicIssues) {
     };
 }
 
-/** 3D fire is reserved for content syntax/parse errors only. */
+/**
+ * Azure AI returns issue types like "bug", "security", "performance", "logic",
+ * "bad-practice", "unused-code" — none of which are "syntax". Fire must
+ * therefore also spawn for any high/critical severity issue, regardless of
+ * type, so Azure-detected problems actually light up buildings.
+ *
+ * Rule:
+ *   - type === "syntax"            → always fire (parse/syntax errors)
+ *   - severity critical or high    → fire (serious Azure-detected issues)
+ *   - everything else              → bug indicator only (no fire)
+ */
 export function metaHasSyntaxIssue(meta) {
     if (!meta) return false;
     if (meta.primaryIssue?.type === "syntax") return true;
     return (meta.issues || []).some((issue) => issue.type === "syntax");
 }
 
+function metaHasHighSeverityIssue(meta) {
+    if (!meta) return false;
+    if (rankSeverity(meta.severityLabel) >= rankSeverity("high")) return true;
+    if (
+        meta.primaryIssue &&
+        rankSeverity(meta.primaryIssue.severity) >= rankSeverity("high")
+    )
+        return true;
+    return (meta.issues || []).some(
+        (issue) => rankSeverity(issue.severity) >= rankSeverity("high"),
+    );
+}
+
 export function shouldSpawnFireForMeta(meta) {
     if (!meta || meta.repaired || meta.missionComplete) return false;
-    return metaHasSyntaxIssue(meta);
+    return metaHasSyntaxIssue(meta) || metaHasHighSeverityIssue(meta);
 }
 
 export function shouldSpawnBugIndicatorForMeta(meta) {
@@ -354,8 +420,7 @@ export function applyHealthToCity(fileMetaGrid, explorerFiles, healthContext) {
         if (!meta?.buildingId) return meta;
         const path = normalizeRepoPath(meta.filePath || meta.path);
         const ghIssues = healthContext.issuesByPath.get(path) || [];
-        const heuristicIssues =
-            healthContext.heuristicsByPath.get(path) || [];
+        const heuristicIssues = healthContext.heuristicsByPath.get(path) || [];
         const payload = buildHealthPayload(path, ghIssues, heuristicIssues);
         if (!payload) {
             if (meta.hasBug || meta.buildFailed) {
