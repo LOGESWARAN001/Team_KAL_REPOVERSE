@@ -128,7 +128,8 @@ export function initFireBuildings(scene) {
     scene.add(fireGroup);
 }
 
-function createHologramSprite() {
+function createHologramSprite(meta) {
+    console.log(meta, "meta");
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 64;
@@ -138,7 +139,11 @@ function createHologramSprite() {
     ctx.font = "bold 22px Inter, sans-serif";
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
-    ctx.fillText("⚠ SYNTAX ERROR", 128, 40);
+    ctx.fillText(
+        `⚠ ${(meta?.primaryIssue?.type || "Unknown issue")?.toUpperCase()}`,
+        128,
+        40,
+    );
 
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({
@@ -214,10 +219,17 @@ function spawnParticle(entry, kind, position, velocity, life) {
             kind === "spark"
                 ? sharedMaterials.spark
                 : kind === "smokeLight"
-                  ? sharedMaterials.smokeLight
-                  : sharedMaterials.smoke;
+                ? sharedMaterials.smokeLight
+                : sharedMaterials.smoke;
         const mesh = new THREE.Mesh(sharedGeometries.smoke, mat);
-        p = { mesh, active: false, kind, life: 0, maxLife: 1, velocity: new THREE.Vector3() };
+        p = {
+            mesh,
+            active: false,
+            kind,
+            life: 0,
+            maxLife: 1,
+            velocity: new THREE.Vector3(),
+        };
         particlePool.push(p);
         fireGroup.add(mesh);
     }
@@ -232,8 +244,8 @@ function spawnParticle(entry, kind, position, velocity, life) {
         kind === "spark"
             ? sharedMaterials.spark
             : kind === "smokeLight"
-              ? sharedMaterials.smokeLight
-              : sharedMaterials.smoke;
+            ? sharedMaterials.smokeLight
+            : sharedMaterials.smoke;
     p.mesh.visible = true;
     p.mesh.scale.setScalar(kind === "spark" ? 0.5 : 1);
     entry.particles.push(p);
@@ -291,8 +303,7 @@ export function setupFireBuilding(meta) {
     const anchor = computeBuildingRoofAnchor(buildingId);
     if (!anchor) return null;
 
-    const severity =
-        meta.fireSeverity || meta.severityLabel || "medium";
+    const severity = meta.fireSeverity || meta.severityLabel || "medium";
     const config = SEVERITY_CONFIG[severity] || SEVERITY_CONFIG.medium;
 
     const group = new THREE.Group();
@@ -312,7 +323,7 @@ export function setupFireBuilding(meta) {
     );
     group.add(beacon);
 
-    const hologram = createHologramSprite();
+    const hologram = createHologramSprite(meta);
     group.add(hologram);
 
     const heat = new THREE.Mesh(sharedGeometries.heat, sharedMaterials.heat);
@@ -433,7 +444,11 @@ function animateFlames(entry, delta) {
     for (const flame of entry.flames) {
         flame.userData.phase += delta * 8;
         const s = 1 + Math.sin(flame.userData.phase) * 0.25;
-        flame.scale.set(s, 0.85 + Math.sin(flame.userData.phase * 1.3) * 0.3, s);
+        flame.scale.set(
+            s,
+            0.85 + Math.sin(flame.userData.phase * 1.3) * 0.3,
+            s,
+        );
         if (flame.userData.outer) {
             flame.userData.outer.material.emissiveIntensity =
                 0.6 + Math.sin(flame.userData.phase * 2) * 0.35;
@@ -448,13 +463,13 @@ function animateBeacon(entry, delta) {
     entry.beacon.material.emissiveIntensity = 0.35 + pulse * 0.35;
 
     if (entry.meta.fireSeverity === "critical") {
-        entry.hologram.material.opacity = 0.75 + Math.sin(entry.pulsePhase * 5) * 0.25;
+        entry.hologram.material.opacity =
+            0.75 + Math.sin(entry.pulsePhase * 5) * 0.25;
     }
 }
 
 function animateHeat(entry, delta) {
-    entry.heat.material.opacity =
-        0.04 + Math.sin(entry.pulsePhase * 4) * 0.03;
+    entry.heat.material.opacity = 0.04 + Math.sin(entry.pulsePhase * 4) * 0.03;
     entry.heat.scale.x = 1 + Math.sin(entry.pulsePhase * 2) * 0.15;
     entry.heat.rotation.z += delta * 0.5;
 }
@@ -471,7 +486,11 @@ function emitSmokeAndSparks(entry, delta) {
         entry.smokeTimer = 0.08 / entry.config.smokeRate;
         const kind =
             entry.meta.fireSeverity === "critical" ? "smoke" : "smokeLight";
-        for (let i = 0; i < (entry.meta.fireSeverity === "critical" ? 2 : 1); i++) {
+        for (
+            let i = 0;
+            i < (entry.meta.fireSeverity === "critical" ? 2 : 1);
+            i++
+        ) {
             spawnParticle(
                 entry,
                 kind,
