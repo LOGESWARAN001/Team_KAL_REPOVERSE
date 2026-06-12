@@ -7,15 +7,39 @@ function randomInt(min, max) {
 }
 
 export function generateMathProblem() {
-    const useAdd = Math.random() < 0.5;
-    if (useAdd) {
-        const a = randomInt(5, 25);
-        const b = randomInt(5, 20);
-        return { expression: `${a} + ${b}`, answer: a + b };
-    }
-    const a = randomInt(20, 40);
-    const b = randomInt(5, 15);
-    return { expression: `${a} - ${b}`, answer: a - b };
+    const a = randomInt(2, 10);
+    const b = randomInt(2, 10);
+    const c = randomInt(2, 10);
+    const d = randomInt(2, 10);
+
+    const problemTypes = [
+        {
+            expression: `(${a} + ${b}) × ${c}`,
+            answer: (a + b) * c,
+        },
+        {
+            expression: `${a} + ${b} × ${c}`,
+            answer: a + b * c,
+        },
+        {
+            expression: `(${a} + ${b}) × (${c} - ${d})`,
+            answer: (a + b) * (c - d),
+        },
+        {
+            expression: `${a * b} ÷ ${b} + ${c}`,
+            answer: (a * b) / b + c,
+        },
+        {
+            expression: `${a} + ${b} × ${c} - ${d}`,
+            answer: a + b * c - d,
+        },
+        {
+            expression: `(${a} + ${b}) ÷ ${c}`,
+            answer: (a + b) / c,
+        },
+    ];
+
+    return problemTypes[randomInt(0, problemTypes.length - 1)];
 }
 
 /**
@@ -68,7 +92,10 @@ export function createMathChallenge(container, { onSuccess, onFail }) {
             return;
         }
         if (value === problem.answer) {
-            feedback.classList.remove("hidden", "hero-challenge-feedback--fail");
+            feedback.classList.remove(
+                "hidden",
+                "hero-challenge-feedback--fail",
+            );
             feedback.classList.add("hero-challenge-feedback--success");
             feedback.textContent = "Correct! Challenge complete.";
             form.querySelector("button")?.setAttribute("disabled", "true");
