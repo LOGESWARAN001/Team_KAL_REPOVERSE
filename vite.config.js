@@ -1,5 +1,5 @@
 /**
- * Vite configuration for GitHub City.
+ * Vite configuration for RepoVerse.
  *
  * Static GLB models live in public/assets/ and are copied verbatim to
  * dist/assets/ on build (alongside hashed JS/CSS bundles).
