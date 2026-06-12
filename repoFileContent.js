@@ -4,7 +4,7 @@
 
 import { githubFetch } from "./api.js";
 
-const MAX_FILE_BYTES = 120_000;
+const MAX_FILE_BYTES = 1_000_000;
 
 function decodeGitHubContent(encoded) {
     const binary = atob((encoded || "").replace(/\n/g, ""));
@@ -32,7 +32,9 @@ export async function fetchRepoFileContent(owner, repo, filePath, ref) {
 
     try {
         const data = await githubFetch(
-            `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
+            `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(
+                ref,
+            )}`,
         );
         if (!data || data.type !== "file") return null;
         if ((data.size || 0) > MAX_FILE_BYTES) return null;
