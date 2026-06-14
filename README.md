@@ -1,24 +1,248 @@
-<p align="center"><img align="center" src="./favicon.svg" width=100 height=100>
-<h1 align="center">RepoVerse</h1></p>
+# Repoverse 3D City
 
-<p align="center">
-  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/LOGESWARAN001/Team_KAL_REPOVERSE?style=flat-square">
-  <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/LOGESWARAN001/Team_KAL_REPOVERSE?color=2411ed&style=flat-square">
-  <img alt="GitHub" src="https://img.shields.io/github/license/LOGESWARAN001/Team_KAL_REPOVERSE?style=flat-square">
-</p>
+> AI-Powered GitHub Repository Visualization & Gamified Code Remediation Platform
 
-### What would Your city look like?
+---
 
-<p><a href="https://github.com/LOGESWARAN001/Team_KAL_REPOVERSE/">Create</a> a 3D city from your GitHub contributions 🏙</p>
+## Overview
 
-### About
+**Repoverse 3D City** is an AI-powered repository analysis platform that transforms GitHub repositories into an interactive 3D city. Each file in a repository is represented as a building, allowing developers to visualize project structure, identify problematic code, and resolve issues through an engaging gamified experience.
 
-<p>RepoVerse uses ThreeJS to generate a 3D city from your GitHub contribution graph.</p>
-<p>Using hardware acceleration is highly recommended!</p>
+The platform uses **GitHub APIs** to analyze repository contents and **Azure AI Services** to detect bugs, security vulnerabilities, performance issues, and code quality concerns. Files containing issues are highlighted with visual indicators such as rooftop fire effects, enabling developers to quickly locate and prioritize fixes.
 
-## Installation
+Once issues are identified, developers can become a **City Hero** by completing challenges and applying AI-generated code fixes directly to their repositories.
 
-1. Clone repository to your local machine
-2. Open terminal and `cd` into repository folder
-3. run `npm install`
-4. run `npm run dev`
+---
+
+## Features
+
+| Feature                     | Description                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
+| AI Repository Analysis      | Analyze GitHub repositories using GitHub APIs and Azure AI Services |
+| 3D City Visualization       | Convert repository files into interactive 3D buildings              |
+| Bug Severity Classification | Categorize issues into Critical, High, Major, and Minor levels      |
+| Visual Issue Indicators     | Display fire and warning effects on buildings with issues           |
+| Detailed AI Reports         | View issue descriptions, root causes, and remediation suggestions   |
+| Become a City Hero          | Gamified issue resolution workflow                                  |
+| Interactive Challenges      | Math Challenge, Quiz Challenge, and Snake Game                      |
+| AI-Powered Fix Suggestions  | Generate secure and optimized code fixes using Azure AI             |
+| GitHub Commit Integration   | Commit AI-generated fixes directly to GitHub                        |
+| Pull Request Creation       | Create pull requests without leaving the platform                   |
+| Automatic City Refresh      | Rebuild and update the city after issues are resolved               |
+
+---
+
+## How It Works
+
+### 1. Repository Analysis
+
+* User submits a GitHub repository URL.
+* GitHub API retrieves repository structure and source files.
+* Azure AI analyzes all files for:
+
+  * Code Quality Issues
+  * Security Vulnerabilities
+  * Performance Problems
+  * Maintainability Concerns
+
+### 2. Issue Classification
+
+Detected issues are categorized into:
+
+* 🔴 Critical
+* 🟠 High
+* 🟡 Major
+* 🔵 Minor
+
+### 3. 3D City Construction
+
+* Every file becomes a building.
+* Repository structure is visualized as a city.
+* Buildings containing issues display rooftop fire and warning effects.
+
+### 4. Issue Investigation
+
+Clicking a building displays:
+
+* Issue Severity
+* Issue Description
+* Root Cause Analysis
+* Impact Assessment
+* AI Recommendations
+
+### 5. Become a City Hero
+
+Users can unlock issue remediation by completing one challenge:
+
+* ➗ Math Challenge
+* ❓ Quiz Challenge
+* 🐍 Snake Game
+
+### 6. AI-Powered Resolution
+
+After completing a challenge:
+
+* Azure AI generates fix recommendations.
+* Optimized code is provided.
+* Users can copy or apply fixes directly.
+
+### 7. GitHub Integration
+
+* Commit code changes.
+* Create Pull Requests.
+* Merge fixes into the repository.
+
+### 8. City Regeneration
+
+After merge:
+
+* Repository is re-analyzed.
+* Fixed buildings are updated.
+* Fire indicators disappear.
+* Repository health improves visually.
+
+---
+
+## Tech Stack
+
+| Layer                 | Technology         |
+| --------------------- | ------------------ |
+| Frontend              | JavaScript         |
+| Visualization         | 3D Repository City |
+| AI Analysis           | Azure AI Services  |
+| AI Orchestration      | Azure AI Foundry   |
+| Repository Management | GitHub API         |
+| Issue Detection       | Azure AI Models    |
+| Code Review           | Azure AI Services  |
+| Version Control       | GitHub API         |
+| Deployment            | Vercel             |
+
+---
+
+## Architecture
+
+```text
+GitHub Repository
+        │
+        ▼
+GitHub API Analysis
+        │
+        ▼
+Azure AI File Analysis
+        │
+        ▼
+Issue Classification
+(Critical / High / Major / Minor)
+        │
+        ▼
+3D City Generation
+        │
+        ▼
+Issue Visualization
+(Fire & Error Indicators)
+        │
+        ▼
+Become a City Hero
+        │
+        ▼
+Challenge Completion
+(Math / Quiz / Snake)
+        │
+        ▼
+Azure AI Code Review
+        │
+        ▼
+Fix Generation
+        │
+        ▼
+GitHub Commit & PR
+        │
+        ▼
+Repository Re-analysis
+        │
+        ▼
+Updated 3D City
+```
+
+---
+
+## Key Technologies Used
+
+* JavaScript
+* Azure AI Foundry
+* Azure AI Services
+* GitHub API
+* Vercel
+* 3D Visualization Engine
+
+---
+
+## Project Information
+
+| Item                 | Details                                             |
+| -------------------- | --------------------------------------------------- |
+| Project Name         | Repoverse 3D City                                   |
+| Programming Language | JavaScript                                          |
+| Submission Type      | Team                                                |
+| Team Members         | Kamesh, Aswin, Logeswaran                           |
+| GitHub Repository    | https://github.com/LOGESWARAN001/Team_KAL_REPOVERSE |
+| Live Demo            | https://repo-verse.vercel.app/                      |
+
+---
+
+## Technical Highlights
+
+### AI-Powered Static Code Analysis
+
+Azure AI Services analyze every file before city generation to identify bugs, vulnerabilities, and code quality issues.
+
+### Intelligent Severity Detection
+
+Automatically classifies issues into Critical, High, Major, and Minor severity levels.
+
+### Interactive 3D Repository Mapping
+
+Transforms repository structure into an immersive city where each building represents a source file.
+
+### Real-Time Visual Bug Representation
+
+Problematic files are highlighted using rooftop fire and warning effects.
+
+### Gamified Developer Experience
+
+Developers earn the role of City Hero by solving challenges before accessing AI-powered fixes.
+
+### AI-Assisted Code Remediation
+
+Azure AI generates detailed reviews, explanations, and optimized code corrections.
+
+### End-to-End GitHub Workflow
+
+Supports repository analysis, commits, pull requests, and repository refresh using GitHub APIs.
+
+### Dynamic City Regeneration
+
+Automatically updates city health after fixes are merged into the repository.
+
+---
+
+## Future Enhancements
+
+* Multi-Repository City Support
+* Team Collaboration Mode
+* Live GitHub Webhook Integration
+* AI-Powered Code Quality Score
+* Achievement & Leaderboard System
+* Repository Health Analytics Dashboard
+
+---
+
+## Team
+
+* Kamesh
+* Aswin
+* Logeswaran
+
+---
+
+Built with ❤️ using Azure AI Foundry, Azure AI Services, GitHub APIs, and JavaScript.
