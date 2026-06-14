@@ -177,4 +177,14 @@ Updated 3D City
 
 ---
 
+## 🎥 Demo Video
+ 
+Watch RepoVerse 3D City in action:
+ 
+[![RepoVerse 3D City Demo](https://img.shields.io/badge/Watch-Demo%20Video-red?style=for-the-badge&logo=youtube)](https://youtu.be/AIVEsidraEQ)
+ 
+Direct Link: https://youtu.be/AIVEsidraEQ
+
+---
+
 Built with ❤️ using Azure AI Foundry, Azure AI Services, GitHub APIs, and JavaScript.
