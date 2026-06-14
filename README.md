@@ -1,4 +1,4 @@
-# Repoverse 3D City
+# Repoverse
 
 > AI-Powered GitHub Repository Visualization & Gamified Code Remediation Platform
 
@@ -174,74 +174,6 @@ Updated 3D City
 * GitHub API
 * Vercel
 * 3D Visualization Engine
-
----
-
-## Project Information
-
-| Item                 | Details                                             |
-| -------------------- | --------------------------------------------------- |
-| Project Name         | Repoverse 3D City                                   |
-| Programming Language | JavaScript                                          |
-| Submission Type      | Team                                                |
-| Team Members         | Kamesh, Aswin, Logeswaran                           |
-| GitHub Repository    | https://github.com/LOGESWARAN001/Team_KAL_REPOVERSE |
-| Live Demo            | https://repo-verse.vercel.app/                      |
-
----
-
-## Technical Highlights
-
-### AI-Powered Static Code Analysis
-
-Azure AI Services analyze every file before city generation to identify bugs, vulnerabilities, and code quality issues.
-
-### Intelligent Severity Detection
-
-Automatically classifies issues into Critical, High, Major, and Minor severity levels.
-
-### Interactive 3D Repository Mapping
-
-Transforms repository structure into an immersive city where each building represents a source file.
-
-### Real-Time Visual Bug Representation
-
-Problematic files are highlighted using rooftop fire and warning effects.
-
-### Gamified Developer Experience
-
-Developers earn the role of City Hero by solving challenges before accessing AI-powered fixes.
-
-### AI-Assisted Code Remediation
-
-Azure AI generates detailed reviews, explanations, and optimized code corrections.
-
-### End-to-End GitHub Workflow
-
-Supports repository analysis, commits, pull requests, and repository refresh using GitHub APIs.
-
-### Dynamic City Regeneration
-
-Automatically updates city health after fixes are merged into the repository.
-
----
-
-## Future Enhancements
-
-* Multi-Repository City Support
-* Team Collaboration Mode
-* Live GitHub Webhook Integration
-* AI-Powered Code Quality Score
-* Achievement & Leaderboard System
-* Repository Health Analytics Dashboard
-
----
-
-## Team
-
-* Kamesh
-* Aswin
-* Logeswaran
 
 ---
 
