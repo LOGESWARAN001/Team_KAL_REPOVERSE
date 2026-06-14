@@ -14,8 +14,7 @@ import { fetchRepoFileContent } from "./repoFileContent.js";
 // ─── Azure OpenAI Config (same as heroAiRemediation.js) ───────────────────────
 const AZURE_OPENAI_ENDPOINT =
     "https://trucsopenai.openai.azure.com/openai/v1/chat/completions";
-const AZURE_OPENAI_API_KEY =
-    "6dqaT4slEcJQ8nPKYenaWqLFPINX4DuhjGb7clbV06OBmbRjkoXwJQQJ99CFACYeBjFXJ3w3AAABACOGAbma";
+const AZURE_OPENAI_API_KEY = import.meta.env.VITE_AZURE_OPENAI_API_KEY;;
 const AZURE_OPENAI_DEPLOYMENT = "gpt-4.1-mini";
 
 // ─── File extensions worth scanning ──────────────────────────────────────────
